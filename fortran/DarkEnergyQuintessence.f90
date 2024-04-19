@@ -24,9 +24,10 @@
     use classes
     use Interpolation
     implicit none
+    
     private
 
-    real(dl), parameter :: Tpl= sqrt(kappa*hbar/c**5)  ! sqrt(8 pi G hbar/c^5), reduced planck time
+    real(dl), parameter :: Tpl = sqrt(kappa*hbar/c**5)  ! sqrt(8 pi G hbar/c^5), reduced planck time
 
     ! General base class. Specific implemenetations should inherit, defining Vofphi and setting up
     ! initial conditions and interpolation tables
@@ -82,7 +83,7 @@
     ! JVR Modification: adding a new type, TMonodromicQuintessence
     ! Check Equation (1) from https://arxiv.org/pdf/1709.01544.pdf
     type, extends(TQuintessence) :: TMonodromicQuintessence
-        real(dl) :: alpha = -0.2_dl
+        real(dl) :: alpha = 0.2_dl
         real(dl) :: C = 1.0_dl
         real(dl) :: A = 0.05_dl
         real(dl) :: nu = 50.0_dl 
@@ -196,16 +197,16 @@
         real(dl) a, a2, tot
         real(dl) phi, grhode, phidot, adot
 
-        a2=a**2
+        a2 = a**2
         phi = y(1)
         phidot = y(2)/a2
 
-        grhode=a2*(0.5d0*phidot**2 + a2*this%Vofphi(phi,0))
+        grhode = a2*(0.5d0*phidot**2 + a2*this%Vofphi(phi,0))
         tot = this%state%grho_no_de(a) + grhode
 
-        adot=sqrt(tot/3.0d0)
-        yprime(1)=phidot/adot !d phi /d a
-        yprime(2)= -a2**2*this%Vofphi(phi,1)/adot
+        adot = sqrt(tot/3.0d0)
+        yprime(1) = phidot/adot !d phi /d a
+        yprime(2) = -a2**2*this%Vofphi(phi,1)/adot
     end subroutine EvolveBackground
 
     real(dl) function TQuintessence_phidot_start(this,phi)
@@ -289,7 +290,8 @@
         ind = 1
         y(1) = phi
         y(2) = phidot*astart**2
-        call dverk(this, NumEqs, EvolveBackground, astart, y, 1._dl, atol, ind, c, NumEqs, w)
+        call dverk(this, NumEqs, EvolveBackground, astart, y, 1._dl, this%integrate_tol, ind, c, NumEqs, w)
+        ! call dverk(this, NumEqs, EvolveBackground, astart, y, 1._dl, atol, ind, c, NumEqs, w)
         call this%EvolveBackground(NumEqs, 1._dl, y, w(:,1))
         
         GetOmegaFromInitial=(0.5d0*y(2)**2 + this%Vofphi(y(1),0))/this%State%grhocrit !(3*adot**2)
@@ -775,12 +777,21 @@
 
         ! Assume f = sqrt(kappa)*f_theory = f_theory/M_pl
         ! m = m_theory/M_Pl
+        ! JVR Note: removing the `units` factor that appears in both other implementations
+        ! Assuming C has the units of `grhocrit`
+        ! Because w is close to -1 and rho_de ~ grho_crit ~ V
         if (deriv==0) then
-            Vofphi = units*this%C*phi**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*phi))
-        else if (deriv ==1) then
-            Vofphi = units*this%C*(-this%alpha*phi**(-this%alpha-1)*(1.0_dl - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
+            Vofphi = this%C*phi**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*phi))
+            print*, "phi =", phi, "V = ", Vofphi
+            if (isnan(Vofphi)) stop "V is NaN"
+        else if (deriv == 1) then
+            Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1.0_dl - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
+            print*, "phi =", phi, "V' = ", Vofphi
+            if (isnan(Vofphi)) stop "V' is NaN"
         else if (deriv ==2) then
-            Vofphi = units*this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
+            Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
+            print*, "phi =", phi, "V'' = ", Vofphi
+            if (isnan(Vofphi)) stop "V'' is NaN"
         end if
     end function TMonodromicQuintessence_VofPhi
 
@@ -796,6 +807,8 @@
         real(dl), parameter :: splZero = 0._dl
         real(dl) :: lastsign, da_osc, last_a, a_c
         real(dl) :: C_1, C_2, delta_C, new_C, a2, astart, atol, initial_phi, initial_phidot, om, om1, om2
+        real(dl) :: t_initial, H_initial, p, phi_tilde_0
+        real(dl) :: grho_no_de_at_initial_a
         real(dl), dimension(:), allocatable :: sampled_a, phi_a, phidot_a, fde
         integer :: npoints, tot_points, max_ix
         logical :: has_peak, OK
@@ -828,16 +841,29 @@
 
         allocate(phi_a(npoints), phidot_a(npoints), sampled_a(npoints))
 
+        ! Initial conditions from tracking solution
+        ! See equations (4) from https://arxiv.org/pdf/1709.01544.pdf
+        astart = 1d-4
+        grho_no_de_at_initial_a = this%state%grho_no_de(astart)
+        select type(State)
+        class is (CAMBdata)
+            H_initial = State%CP%H0 * sqrt(grho_no_de_at_initial_a / State%grhocrit)
+        end select
+        
+        t_initial = 2._dl / (3._dl*H_initial)
+        p = 2._dl/(2._dl + this%alpha)
+        phi_tilde_0 = ((p**2 + p)/(this%alpha * this%C))**(-1._dl/(2._dl + this%alpha))
+        initial_phi = phi_tilde_0 * t_initial**p
+        write (*,*) "Initial field value:", initial_phi, "H:", H_initial, "p:", p, "phi_tilde_0:", phi_tilde_0
+
         ! Binary search for C
-        C_1 = this%State%grhocrit*1e-80
-        C_2 = this%State%grhocrit*1e-70
+        C_1 = this%State%grhocrit * 0.5_dl
+        C_2 = this%State%grhocrit * 2.0_dl
         print*, "Tentative values of C: ", C_1, C_2
-        astart = 1d-7
         
         ! See if current C is giving correct omega_de now
         atol = 1d-8
         initial_phidot = 0d0
-        initial_phi = 1.0_dl
         this%C = C_1
         om1 = this%GetOmegaFromInitial(astart, initial_phi, initial_phidot, atol)
         

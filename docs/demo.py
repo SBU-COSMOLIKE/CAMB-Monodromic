@@ -6,7 +6,7 @@ print(f"Using CAMB {camb.__version__} installed at {camb.__file__}")
 base_cosmology = camb.set_params(# Background
 	H0=70, ombh2=0.02238280, omch2=0.1201075, TCMB=2.7255,
 	# Dark Energy
-	dark_energy_model = 'MonodromicQuintessence',
+	dark_energy_model = 'MonodromicQuintessence', alpha=0.2,
 	# Neutrinos
 	omnuh2 = 0, num_nu_massless=3.044, num_nu_massive = 0,
 	nu_mass_degeneracies=[0], nu_mass_numbers = [0],
