@@ -216,6 +216,25 @@ class EarlyQuintessence(Quintessence):
             self.zc = zc
             self.fde_zc = fde_zc
 
+@fortran_class
+class MonodromicQuintessence(Quintessence):
+    r"""
+    Monodromic Quintessence model (as described in https://arxiv.org/pdf/1709.01544.pdf)
+    """
+
+    _fields_ = [
+        ("alpha", c_double, "power law exponent for potential"),
+        ("C", c_double, "Overall scale factor of potential"),
+        ("A", c_double, "Amplitude of oscillating potential part"),
+        ("nu", c_double, "Frequency of oscillating potential part"),
+    ]
+    _fortran_class_name_ = 'TMonodromicQuintessence'
+
+    def set_params(self, alpha=0.2, C=5e-54, A=0.05, nu=100):
+        self.alpha = alpha
+        self.C = C
+        self.A = A
+        self.nu = nu
 
 # short names for models that support w/wa
 F2003Class._class_names.update({'fluid': DarkEnergyFluid, 'ppf': DarkEnergyPPF})
