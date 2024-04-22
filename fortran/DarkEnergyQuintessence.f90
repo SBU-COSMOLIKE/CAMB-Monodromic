@@ -95,6 +95,7 @@
         procedure, nopass :: PythonClass => TMonodromicQuintessence_PythonClass
         procedure, nopass :: SelfPointer => TMonodromicQuintessence_SelfPointer
         procedure, private :: check_error => TMonodromicQuintessence_check_error
+        procedure :: get_initial_phi
     end type TMonodromicQuintessence
 
     procedure(TClassDverk) :: dverk
@@ -195,13 +196,14 @@
         integer :: num
         real(dl) y(num),yprime(num)
         real(dl) a, a2, tot
-        real(dl) phi, grhode, phidot, adot
+        real(dl) phi, grhode, phi_prime, a_prime
 
         a2 = a**2
         phi = y(1)
-        phidot = y(2)/a2
+        phi_prime = y(2)/a2
+        print*, "at a = ", a, "phi_prime = ", phidot
 
-        grhode = a2*(0.5d0*phidot**2 + a2*this%Vofphi(phi,0))
+        grhode = a2*(0.5d0*phidot**2 + a2*this%Vofphi(phi, 0))
         tot = this%state%grho_no_de(a) + grhode
 
         adot = sqrt(tot/3.0d0)
@@ -284,17 +286,22 @@
         class(TQuintessence) :: this
         real(dl), intent(IN) :: astart, phi, phidot, atol
         integer, parameter ::  NumEqs = 2
-        real(dl) :: c(24), w(NumEqs, 9), y(NumEqs)
+        real(dl) :: c(24), w(NumEqs, 9), y(NumEqs), a_treshold
         integer :: ind, i
         
         ind = 1
         y(1) = phi
         y(2) = phidot*astart**2
-        call dverk(this, NumEqs, EvolveBackground, astart, y, 1._dl, this%integrate_tol, ind, c, NumEqs, w)
-        ! call dverk(this, NumEqs, EvolveBackground, astart, y, 1._dl, atol, ind, c, NumEqs, w)
+        ! TODO: make my own integrator here
+        call dverk(this, NumEqs, EvolveBackgroundLog, astart, y, a_treshold, this%integrate_tol, ind, c, NumEqs, w)
+        call dverk(this, NumEqs, EvolveBackground, a_treshold, y, 1._dl, this%integrate_tol, ind, c, NumEqs, w)
         call this%EvolveBackground(NumEqs, 1._dl, y, w(:,1))
+
+        if (ind < 0) then
+            print*, "WARNING: dverk ran with errors"
+        end if
         
-        GetOmegaFromInitial=(0.5d0*y(2)**2 + this%Vofphi(y(1),0))/this%State%grhocrit !(3*adot**2)
+        GetOmegaFromInitial = (0.5d0*y(2)**2 + this%Vofphi(y(1),0))/this%State%grhocrit !(3*adot**2)
     end function GetOmegaFromInitial
 
     ! -----------------------------------------------------------------------
@@ -780,20 +787,34 @@
         ! JVR Note: removing the `units` factor that appears in both other implementations
         ! Assuming C has the units of `grhocrit`
         ! Because w is close to -1 and rho_de ~ grho_crit ~ V
-        if (deriv==0) then
+        if (deriv == 0) then
             Vofphi = this%C*phi**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*phi))
-            print*, "phi =", phi, "V = ", Vofphi
+            print *, "phi = ", phi, "V = ", Vofphi
             if (isnan(Vofphi)) stop "V is NaN"
         else if (deriv == 1) then
-            Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1.0_dl - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
-            print*, "phi =", phi, "V' = ", Vofphi
-            if (isnan(Vofphi)) stop "V' is NaN"
-        else if (deriv ==2) then
+            Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
+            print *, "phi = ", phi, "V' = ", Vofphi
+            ! if (isnan(Vofphi)) stop "V' is NaN"
+        else if (deriv == 2) then
             Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
-            print*, "phi =", phi, "V'' = ", Vofphi
+
             if (isnan(Vofphi)) stop "V'' is NaN"
         end if
     end function TMonodromicQuintessence_VofPhi
+
+    real(dl) function get_initial_phi(this, a) result(initial_phi)
+        class(TMonodromicQuintessence), intent(in) :: this
+        real(dl), intent(in) :: a
+        real(dl) :: H_ini, t_ini, p, grho_no_de_at_initial_a, phi_tilde_0
+
+        grho_no_de_at_initial_a = this%State%grho_no_de(a)/a**4
+        H_ini = this%State%CP%H0 * sqrt(grho_no_de_at_initial_a/this%State%grhocrit)
+        t_ini = 1._dl/(2._dl*H_ini)
+        p = 2._dl/(2._dl + this%alpha)
+        phi_tilde_0 = ((p**2 + p)/(this%alpha*this%C))**(-1/(2+this%alpha))
+        initial_phi = phi_tilde_0 * t_ini**p
+        print*, "initial phi = ", initial_phi
+    end function get_initial_phi
 
     subroutine TMonodromicQuintessence_Init(this, State)
         use Powell
@@ -807,8 +828,6 @@
         real(dl), parameter :: splZero = 0._dl
         real(dl) :: lastsign, da_osc, last_a, a_c
         real(dl) :: C_1, C_2, delta_C, new_C, a2, astart, atol, initial_phi, initial_phidot, om, om1, om2
-        real(dl) :: t_initial, H_initial, p, phi_tilde_0
-        real(dl) :: grho_no_de_at_initial_a
         real(dl), dimension(:), allocatable :: sampled_a, phi_a, phidot_a, fde
         integer :: npoints, tot_points, max_ix
         logical :: has_peak, OK
@@ -821,7 +840,7 @@
         !Make interpolation table, etc,
         !At this point massive neutrinos have been initialized
         !so grho_no_de can be used to get density and pressure of other components at scale factor a
-        print*, "Initializing DE"
+        print*, "Initializing DER!"
         call this%TQuintessence%Init(State)
         select type(State)
         class is (CAMBdata)
@@ -843,28 +862,18 @@
 
         ! Initial conditions from tracking solution
         ! See equations (4) from https://arxiv.org/pdf/1709.01544.pdf
-        astart = 1d-4
-        grho_no_de_at_initial_a = this%state%grho_no_de(astart)
-        select type(State)
-        class is (CAMBdata)
-            H_initial = State%CP%H0 * sqrt(grho_no_de_at_initial_a / State%grhocrit)
-        end select
+        astart = 1d-5
         
-        t_initial = 2._dl / (3._dl*H_initial)
-        p = 2._dl/(2._dl + this%alpha)
-        phi_tilde_0 = ((p**2 + p)/(this%alpha * this%C))**(-1._dl/(2._dl + this%alpha))
-        initial_phi = phi_tilde_0 * t_initial**p
-        write (*,*) "Initial field value:", initial_phi, "H:", H_initial, "p:", p, "phi_tilde_0:", phi_tilde_0
-
         ! Binary search for C
-        C_1 = this%State%grhocrit * 0.5_dl
-        C_2 = this%State%grhocrit * 2.0_dl
+        C_1 = this%State%grhov * 0.1_dl
+        C_2 = this%State%grhov * 1.5_dl
         print*, "Tentative values of C: ", C_1, C_2
         
         ! See if current C is giving correct omega_de now
         atol = 1d-8
         initial_phidot = 0d0
         this%C = C_1
+        initial_phi = this%get_initial_phi(astart)
         om1 = this%GetOmegaFromInitial(astart, initial_phi, initial_phidot, atol)
         
         print*, "Target Omega_de:", omega_de_target, "Got:", om1, "with initial guess C = ", this%C
@@ -872,6 +881,7 @@
         if (abs(om1 - omega_de_target) > omega_de_tol) then
             OK = .false.
             this%C = C_2
+            initial_phi = this%get_initial_phi(astart)
             om2 = this%GetOmegaFromInitial(astart, initial_phi, initial_phidot, atol)
             print*, "Target Omega_de:", omega_de_target, "Got:", om2, "with C = ", this%C
             if (om1 > omega_de_target .or. om2 < omega_de_target) then
@@ -883,6 +893,7 @@
                 delta_C = C_2 - C_1
                 new_C = C_1 + delta_C/2.0_dl
                 this%C = new_C
+                initial_phi = this%get_initial_phi(astart)
                 om = this%GetOmegaFromInitial(astart, initial_phi, initial_phidot, atol)
                 print*, "Target Omega_de:", omega_de_target, "Got:", om, "with C = ", this%C
                 if (om < omega_de_target) then
