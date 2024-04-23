@@ -856,7 +856,7 @@
         class(TCAMBdata), intent(in), target :: State
         real(dl) :: aend, afrom, omega_de_target
         integer, parameter ::  NumEqs = 2, max_iters = 20
-        real(dl), parameter :: omega_de_tol = 1e-3
+        real(dl), parameter :: omega_de_tol = 1e-4
         real(dl) :: c(24), w(NumEqs,9), y(NumEqs), y_prime(NumEqs)
         integer :: ind, i, ix
         real(dl), parameter :: splZero = 0._dl
