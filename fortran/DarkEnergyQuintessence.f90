@@ -201,14 +201,13 @@
         a2 = a**2
         phi = y(1)
         phi_prime = y(2)/a2
-        print*, "at a = ", a, "phi_prime = ", phidot
 
-        grhode = a2*(0.5d0*phidot**2 + a2*this%Vofphi(phi, 0))
+        grhode = a2*(0.5d0*phi_prime**2 + a2*this%Vofphi(phi, 0))
         tot = this%state%grho_no_de(a) + grhode
 
-        adot = sqrt(tot/3.0d0)
-        yprime(1) = phidot/adot !d phi /d a
-        yprime(2) = -a2**2*this%Vofphi(phi,1)/adot
+        a_prime = sqrt(tot/3.0d0)
+        yprime(1) = phi_prime/a_prime !d phi /d a
+        yprime(2) = -a2**2*this%Vofphi(phi,1)/a_prime
     end subroutine EvolveBackground
 
     real(dl) function TQuintessence_phidot_start(this,phi)
@@ -286,20 +285,40 @@
         class(TQuintessence) :: this
         real(dl), intent(IN) :: astart, phi, phidot, atol
         integer, parameter ::  NumEqs = 2
-        real(dl) :: c(24), w(NumEqs, 9), y(NumEqs), a_treshold
+        real(dl) :: c(24), w(NumEqs, 9), y(NumEqs), a_treshold, y_prime(2)
         integer :: ind, i
+        integer, parameter :: nsteps_log = 2000, nsteps_linear = 2000
+        real(dl) :: da, dloga, loga, a
         
         ind = 1
+        a_treshold = 1e-3
+        dloga = (log(a_treshold) - log(astart))/nsteps_log
         y(1) = phi
         y(2) = phidot*astart**2
-        ! TODO: make my own integrator here
-        call dverk(this, NumEqs, EvolveBackgroundLog, astart, y, a_treshold, this%integrate_tol, ind, c, NumEqs, w)
-        call dverk(this, NumEqs, EvolveBackground, a_treshold, y, 1._dl, this%integrate_tol, ind, c, NumEqs, w)
-        call this%EvolveBackground(NumEqs, 1._dl, y, w(:,1))
+        
+        do i = 1, nsteps_log
+            loga = log(astart) + i*dloga
+            call this%EvolveBackgroundLog(NumEqs, loga, y, y_prime)
+            y(1) = y(1) + y_prime(1)*dloga
+            y(2) = y(2) + y_prime(2)*dloga
+        end do
 
-        if (ind < 0) then
-            print*, "WARNING: dverk ran with errors"
-        end if
+        da = (1._dl - a_treshold)/nsteps_linear
+        do i = 1, nsteps_linear
+            a = a_treshold + i*da
+            call this%EvolveBackground(NumEqs, a, y, y_prime)
+            y(1) = y(1) + y_prime(1)*da
+            y(2) = y(2) + y_prime(2)*da
+        end do
+
+
+        ! call dverk(this, NumEqs, EvolveBackgroundLog, astart, y, a_treshold, this%integrate_tol, ind, c, NumEqs, w)
+        ! call dverk(this, NumEqs, EvolveBackground, a_treshold, y, 1._dl, this%integrate_tol, ind, c, NumEqs, w)
+        ! call this%EvolveBackground(NumEqs, 1._dl, y, w(:,1))
+
+        ! if (ind < 0) then
+        !     print*, "WARNING: dverk ran with errors"
+        ! end if
         
         GetOmegaFromInitial = (0.5d0*y(2)**2 + this%Vofphi(y(1),0))/this%State%grhocrit !(3*adot**2)
     end function GetOmegaFromInitial
@@ -788,14 +807,27 @@
         ! Assuming C has the units of `grhocrit`
         ! Because w is close to -1 and rho_de ~ grho_crit ~ V
         if (deriv == 0) then
+            if (phi < 0) then
+                ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
+                Vofphi = this%C*this%phi_a(2)**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*this%phi_a(2)))
+                return
+            end if
             Vofphi = this%C*phi**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*phi))
-            print *, "phi = ", phi, "V = ", Vofphi
-            if (isnan(Vofphi)) stop "V is NaN"
+            
+            if (isnan(Vofphi)) then
+                print*, "ERROR: for phi =", phi, "V is NaN"
+                stop
+            end if
         else if (deriv == 1) then
             Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
-            print *, "phi = ", phi, "V' = ", Vofphi
+            ! print *, "phi = ", phi, "V' = ", Vofphi
             ! if (isnan(Vofphi)) stop "V' is NaN"
         else if (deriv == 2) then
+            if (phi < 0) then
+                ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
+                Vofphi = this%C*this%phi_a(2)**(-this%alpha-2)*(this%A*sin(this%nu*this%phi_a(2))*(this%phi_a(2)**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*this%phi_a(2)*cos(this%nu*this%phi_a(2)) + this%alpha*(1._dl + this%alpha))
+                return
+            end if
             Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
 
             if (isnan(Vofphi)) stop "V'' is NaN"
@@ -803,6 +835,8 @@
     end function TMonodromicQuintessence_VofPhi
 
     real(dl) function get_initial_phi(this, a) result(initial_phi)
+        ! Initial conditions from tracking solution
+        ! See equations (4) from https://arxiv.org/pdf/1709.01544.pdf
         class(TMonodromicQuintessence), intent(in) :: this
         real(dl), intent(in) :: a
         real(dl) :: H_ini, t_ini, p, grho_no_de_at_initial_a, phi_tilde_0
@@ -813,7 +847,7 @@
         p = 2._dl/(2._dl + this%alpha)
         phi_tilde_0 = ((p**2 + p)/(this%alpha*this%C))**(-1/(2+this%alpha))
         initial_phi = phi_tilde_0 * t_ini**p
-        print*, "initial phi = ", initial_phi
+        ! print*, "initial phi = ", initial_phi
     end function get_initial_phi
 
     subroutine TMonodromicQuintessence_Init(this, State)
@@ -823,167 +857,135 @@
         real(dl) :: aend, afrom, omega_de_target
         integer, parameter ::  NumEqs = 2, max_iters = 20
         real(dl), parameter :: omega_de_tol = 1e-3
-        real(dl) :: c(24), w(NumEqs,9), y(NumEqs)
+        real(dl) :: c(24), w(NumEqs,9), y(NumEqs), y_prime(NumEqs)
         integer :: ind, i, ix
         real(dl), parameter :: splZero = 0._dl
         real(dl) :: lastsign, da_osc, last_a, a_c
-        real(dl) :: C_1, C_2, delta_C, new_C, a2, astart, atol, initial_phi, initial_phidot, om, om1, om2
-        real(dl), dimension(:), allocatable :: sampled_a, phi_a, phidot_a, fde
+        real(dl) :: C_1, C_2, new_C, a, loga, atol, initial_phi, initial_phidot, om, om1, om2, a_line, b_line, error
         integer :: npoints, tot_points, max_ix
-        logical :: has_peak, OK
         real(dl) :: fzero, xzero
         integer :: iflag, iter
         Type(TTimer) :: Timer
         Type(TNEWUOA) :: Minimize
         real(dl) :: log_params(2), param_min(2), param_max(2)
+        integer, parameter :: nsteps_linear = 1000, nsteps_log = 1000, nsteps = nsteps_log + nsteps_linear
+        real(dl), parameter :: a_start = 1e-7, a_switch = 1e-3
+        real(dl), parameter :: dloga = (log(a_switch) - log(a_start))/nsteps_log, da = (1._dl - a_switch)/nsteps_linear
+        real(dl) :: phi, phidot
 
         !Make interpolation table, etc,
         !At this point massive neutrinos have been initialized
         !so grho_no_de can be used to get density and pressure of other components at scale factor a
-        print*, "Initializing DER!"
+        
         call this%TQuintessence%Init(State)
         select type(State)
         class is (CAMBdata)
             omega_de_target = State%Omega_de
         end select
 
-        !use log spacing in a up to max_a_log, then linear. Switch where step matches
-        this%dloga = (-this%log_astart)/(this%npoints-1)
-        this%max_a_log = 1.d0/this%npoints/(exp(this%dloga)-1)
-        npoints = (log(this%max_a_log)-this%log_astart)/this%dloga + 1
-
         if (allocated(this%phi_a)) then
             print*, "WARNING: the interpolation table is already allocated. This shouldn't be happening but we are deallocating anyway"
-            deallocate(this%phi_a, this%phidot_a)
-            deallocate(this%ddphi_a, this%ddphidot_a, this%sampled_a)
+            deallocate(&
+                this%phi_a,      &
+                this%phidot_a,   &
+                this%ddphi_a,    &
+                this%ddphidot_a, &
+                this%sampled_a   &
+            )
         end if
 
-        allocate(phi_a(npoints), phidot_a(npoints), sampled_a(npoints))
-
-        ! Initial conditions from tracking solution
-        ! See equations (4) from https://arxiv.org/pdf/1709.01544.pdf
-        astart = 1d-5
+        allocate(&
+            this%phi_a(nsteps),      &
+            this%phidot_a(nsteps),   &
+            this%ddphi_a(nsteps),    &
+            this%ddphidot_a(nsteps), &
+            this%sampled_a(nsteps)   &
+        )
         
         ! Binary search for C
-        C_1 = this%State%grhov * 0.1_dl
-        C_2 = this%State%grhov * 1.5_dl
-        print*, "Tentative values of C: ", C_1, C_2
+        C_1 = this%State%grhov * 0.5_dl
+        C_2 = this%State%grhov * 1.3_dl
+        print*, "Shooting for C with tentative values: ", C_1, C_2
         
         ! See if current C is giving correct omega_de now
         atol = 1d-8
         initial_phidot = 0d0
         this%C = C_1
-        initial_phi = this%get_initial_phi(astart)
-        om1 = this%GetOmegaFromInitial(astart, initial_phi, initial_phidot, atol)
+        initial_phi = this%get_initial_phi(a_start)
+        om1 = this%GetOmegaFromInitial(a_start, initial_phi, initial_phidot, atol)
+        this%C = C_2
+        initial_phi = this%get_initial_phi(a_start)
+        om2 = this%GetOmegaFromInitial(a_start, initial_phi, initial_phidot, atol)
+        print*, "Target Omega_de:", omega_de_target
+        print*, "C = ", C_1, "=> omega_de = ", om1
+        print*, "C = ", C_2, "=> omega_de = ", om2
         
-        print*, "Target Omega_de:", omega_de_target, "Got:", om1, "with initial guess C = ", this%C
-
-        if (abs(om1 - omega_de_target) > omega_de_tol) then
-            OK = .false.
-            this%C = C_2
-            initial_phi = this%get_initial_phi(astart)
-            om2 = this%GetOmegaFromInitial(astart, initial_phi, initial_phidot, atol)
-            print*, "Target Omega_de:", omega_de_target, "Got:", om2, "with C = ", this%C
+        do i = 1, max_iters
             if (om1 > omega_de_target .or. om2 < omega_de_target) then
-                write (*,*) 'Omega_de values of tentative Cs must bracket required value: '
-                write (*,*) 'om1, om2 = ', real(om1), real(om2)
-                stop
+                write (*,*) 'WARNING: initial guesses for C did not bracket the required value'
             end if
-            do iter = 1, max_iters
-                delta_C = C_2 - C_1
-                new_C = C_1 + delta_C/2.0_dl
-                this%C = new_C
-                initial_phi = this%get_initial_phi(astart)
-                om = this%GetOmegaFromInitial(astart, initial_phi, initial_phidot, atol)
-                print*, "Target Omega_de:", omega_de_target, "Got:", om, "with C = ", this%C
-                if (om < omega_de_target) then
-                    om1 = om
-                    C_1 = new_C
-                else
-                    om2 = om
-                    C_2 = new_C
-                end if
-                if (om2 - om1 < omega_de_tol) then
-                    OK = .true.
-                    this%C = (C_1 + C_2)/2.0_dl
-                    if (FeedbackLevel > 0) print*, "Binary Search converged: Target Omega_de:", omega_de_target, "Got:", om, "with C = ", this%C
-                    exit
-                end if
-            end do
-            if (.not. OK) stop 'Search for good intial conditions did not converge' !this shouldn't happen
-        end if
+            a_line = (om2 - om1)/(C_2 - C_1)
+		    b_line = om2 - a_line*C_2
+            new_C = (omega_de_target - b_line)/a_line
+            this%C = new_C
+            initial_phi = this%get_initial_phi(a_start)
+            om = this%GetOmegaFromInitial(a_start, initial_phi, initial_phidot, atol)
+            error = (om - omega_de_target)/omega_de_target
+            print*, "C = ", new_C, "=> omega_de = ", om, "(error = ", error, ")"
+            
+            if (abs(error) < omega_de_tol) then 
+                print*, "Finished shooting successfully after ", i, "iterations"
+                exit
+            end if
+
+            if (om < omega_de_target) then
+                om1 = om
+                C_1 = new_C
+            else
+                om2 = om
+                C_2 = new_C
+            end if
+        end do
 
         y(1) = initial_phi
-        initial_phidot = this%astart*this%phidot_start(initial_phi)
-        y(2) = initial_phidot*this%astart**2
-
-        phi_a(1) = y(1)
-        phidot_a(1) = y(2)/this%astart**2
-        sampled_a(1) = this%astart
-        da_osc = 1
-        last_a = this%astart
-        max_ix =0
-
-        ind = 1
-        afrom=this%log_astart
-        do i=1, npoints-1
-            aend = this%log_astart + this%dloga*i
-            ix = i + 1
-            sampled_a(ix) = exp(aend)
-            a2 = sampled_a(ix)**2
-            call dverk(this, NumEqs, EvolveBackgroundLog, afrom, y, aend, this%integrate_tol, ind, c, NumEqs, w)
-            if (.not. this%check_error(exp(afrom), exp(aend))) return
-            call EvolveBackgroundLog(this, NumEqs, aend, y, w(:,1))
-            
-            phi_a(ix) = y(1)
-            phidot_a(ix) = y(2)/a2
-            if (i == 1) then
-                lastsign = y(2)
-            elseif (y(2)*lastsign < 0) then
-                !derivative has changed sign. Use to probe any oscillation scale:
-                da_osc = min(da_osc, exp(aend) - last_a)
-                last_a = exp(aend)
-                lastsign= y(2)
-            end if
-        end do
-
-        ! Do remaining steps with linear spacing in a, trying to be small enough
-        this%npoints_log = ix
-        this%max_a_log = sampled_a(ix)
-        this%da = min(this%max_a_log *(exp(this%dloga)-1), (1- this%max_a_log)/(this%npoints-this%npoints_log))
-        this%npoints_linear = int((1- this%max_a_log)/ this%da)+1
-        this%da = (1- this%max_a_log)/this%npoints_linear
-
-        tot_points = this%npoints_log+this%npoints_linear
-        allocate(this%phi_a(tot_points), this%phidot_a(tot_points))
-        allocate(this%ddphi_a(tot_points), this%ddphidot_a(tot_points))
-        allocate(this%sampled_a(tot_points))
-        this%sampled_a(1:ix) = sampled_a(1:ix)
-        this%phi_a(1:ix) = phi_a(1:ix)
-        this%phidot_a(1:ix) = phidot_a(1:ix)
-        this%sampled_a(1:ix) = sampled_a(1:ix)
-
-        ! JVR: WE NEED TO DEALLOCATE phi_a, phidot_a, sampled_a
-        ! this might be causing memory leaks and subsequent segmentation faults in original CAMB!
-        deallocate(phi_a, phidot_a, sampled_a)
-
-        ind = 1
-        afrom = this%max_a_log
-        do i=1, this%npoints_linear
-            ix = this%npoints_log + i
-            aend = this%max_a_log + this%da*i
-            a2 = aend**2
-            this%sampled_a(ix) = aend
-            call dverk(this, NumEqs, EvolveBackground, afrom, y, aend, this%integrate_tol, ind, c, NumEqs, w)
-            if (.not. this%check_error(afrom, aend)) return
-            call EvolveBackground(this, NumEqs, aend, y, w(:,1))
-            this%phi_a(ix) = y(1)
-            this%phidot_a(ix) = y(2)/a2
-        end do
-
-        call spline(this%sampled_a,this%phi_a,tot_points,splZero,splZero,this%ddphi_a)
-        call spline(this%sampled_a,this%phidot_a,tot_points,splZero,splZero,this%ddphidot_a)
+        y(2) = 0d0
         
+        do i = 1, nsteps_log
+            loga = log(a_start) + i*dloga
+            call this%EvolveBackgroundLog(NumEqs, loga, y, y_prime)
+            y(1) = y(1) + y_prime(1)*dloga
+            y(2) = y(2) + y_prime(2)*dloga
+            this%sampled_a(i) = exp(loga)
+            this%phi_a(i) = y(1)
+            this%phidot_a(i) = y(2)/this%sampled_a(i)**2
+        end do
+
+        do i = 1, nsteps_linear
+            a = a_switch + i*da
+            call this%EvolveBackground(NumEqs, a, y, y_prime)
+            y(1) = y(1) + y_prime(1)*da
+            y(2) = y(2) + y_prime(2)*da
+            this%sampled_a(nsteps_log + i) = a
+            this%phi_a(nsteps_log + i) = y(1)
+            this%phidot_a(nsteps_log + i) = y(2)/a**2
+        end do
+
+        ! JVR NOTE: we need to deallocate phi_a, phidot_a, sampled_a
+        ! this might be causing memory leaks and subsequent segmentation faults in original CAMB!
+        ! deallocate(phi_a, phidot_a, sampled_a)
+        
+        ! Must set the fields
+        this%astart = a_start
+        this%npoints_linear = nsteps_linear
+        this%npoints_log = nsteps_log
+        this%da = da
+        this%dloga = dloga
+        this%log_astart = log(a_start)
+        this%max_a_log = a_switch
+
+        call spline(this%sampled_a, this%phi_a, nsteps, splZero, splZero, this%ddphi_a)
+        call spline(this%sampled_a, this%phidot_a, nsteps, splZero, splZero, this%ddphidot_a)
+
     end subroutine TMonodromicQuintessence_Init
 
     subroutine TMonodromicQuintessence_ReadParams(this, Ini)
