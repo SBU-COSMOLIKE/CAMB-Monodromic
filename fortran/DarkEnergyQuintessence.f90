@@ -162,14 +162,14 @@
             if (present(w)) w = -1_dl
         elseif (a >= this%astart) then
             a2 = a**2
-            call this%ValsAta(a,phi,phidot)
-            V = this%Vofphi(phi,0)
+            call this%ValsAta(a, phi, phidot)
+            V = this%Vofphi(phi, 0)
             grhov_t = phidot**2/2 + a2*V
             if (present(w)) then
                 w = (phidot**2/2 - a2*V)/grhov_t
             end if
         else
-            grhov_t=0
+            grhov_t = 0
             if (present(w)) w = -1
         end if
     end subroutine TQuintessence_BackgroundDensityAndPressure
@@ -285,14 +285,15 @@
         class(TQuintessence) :: this
         real(dl), intent(IN) :: astart, phi, phidot, atol
         integer, parameter ::  NumEqs = 2
-        real(dl) :: c(24), w(NumEqs, 9), y(NumEqs), a_treshold, y_prime(2)
+        real(dl) :: c(24), w(NumEqs, 9), y(NumEqs), a_switch, y_prime(2)
         integer :: ind, i
         integer, parameter :: nsteps_log = 2000, nsteps_linear = 2000
+        
         real(dl) :: da, dloga, loga, a
         
         ind = 1
-        a_treshold = 1e-3
-        dloga = (log(a_treshold) - log(astart))/nsteps_log
+        a_switch = 1e-3
+        dloga = (log(a_switch) - log(astart))/nsteps_log
         y(1) = phi
         y(2) = phidot*astart**2
         
@@ -303,24 +304,15 @@
             y(2) = y(2) + y_prime(2)*dloga
         end do
 
-        da = (1._dl - a_treshold)/nsteps_linear
+        da = (1._dl - a_switch)/nsteps_linear
         do i = 1, nsteps_linear
-            a = a_treshold + i*da
+            a = a_switch + i*da
             call this%EvolveBackground(NumEqs, a, y, y_prime)
             y(1) = y(1) + y_prime(1)*da
             y(2) = y(2) + y_prime(2)*da
         end do
-
-
-        ! call dverk(this, NumEqs, EvolveBackgroundLog, astart, y, a_treshold, this%integrate_tol, ind, c, NumEqs, w)
-        ! call dverk(this, NumEqs, EvolveBackground, a_treshold, y, 1._dl, this%integrate_tol, ind, c, NumEqs, w)
-        ! call this%EvolveBackground(NumEqs, 1._dl, y, w(:,1))
-
-        ! if (ind < 0) then
-        !     print*, "WARNING: dverk ran with errors"
-        ! end if
         
-        GetOmegaFromInitial = (0.5d0*y(2)**2 + this%Vofphi(y(1),0))/this%State%grhocrit !(3*adot**2)
+        GetOmegaFromInitial = (0.5d0*y(2)**2 + this%Vofphi(y(1),0))/this%State%grhocrit
     end function GetOmegaFromInitial
 
     ! -----------------------------------------------------------------------
@@ -847,31 +839,23 @@
         p = 2._dl/(2._dl + this%alpha)
         phi_tilde_0 = ((p**2 + p)/(this%alpha*this%C))**(-1/(2+this%alpha))
         initial_phi = phi_tilde_0 * t_ini**p
-        ! print*, "initial phi = ", initial_phi
     end function get_initial_phi
 
     subroutine TMonodromicQuintessence_Init(this, State)
-        use Powell
         class(TMonodromicQuintessence), intent(inout) :: this
         class(TCAMBdata), intent(in), target :: State
-        real(dl) :: aend, afrom, omega_de_target
-        integer, parameter ::  NumEqs = 2, max_iters = 20
+        integer,  parameter :: NumEqs = 2, max_iters = 20
+        integer,  parameter :: nsteps_linear = 1000, nsteps_log = 1000, nsteps = nsteps_log + nsteps_linear
         real(dl), parameter :: omega_de_tol = 1e-4
-        real(dl) :: c(24), w(NumEqs,9), y(NumEqs), y_prime(NumEqs)
-        integer :: ind, i, ix
         real(dl), parameter :: splZero = 0._dl
-        real(dl) :: lastsign, da_osc, last_a, a_c
-        real(dl) :: C_1, C_2, new_C, a, loga, atol, initial_phi, initial_phidot, om, om1, om2, a_line, b_line, error
-        integer :: npoints, tot_points, max_ix
-        real(dl) :: fzero, xzero
-        integer :: iflag, iter
-        Type(TTimer) :: Timer
-        Type(TNEWUOA) :: Minimize
-        real(dl) :: log_params(2), param_min(2), param_max(2)
-        integer, parameter :: nsteps_linear = 1000, nsteps_log = 1000, nsteps = nsteps_log + nsteps_linear
         real(dl), parameter :: a_start = 1e-7, a_switch = 1e-3
         real(dl), parameter :: dloga = (log(a_switch) - log(a_start))/nsteps_log, da = (1._dl - a_switch)/nsteps_linear
-        real(dl) :: phi, phidot
+        real(dl)            :: y(NumEqs), y_prime(NumEqs)
+        real(dl)            :: omega_de_target, om, om1, om2
+        real(dl)            :: C_1, C_2, new_C, a, loga, atol, initial_phi, initial_phidot, a_line, b_line, error
+        real(dl)            :: phi, phidot
+        integer             :: i
+        Type(TTimer)        :: Timer
 
         !Make interpolation table, etc,
         !At this point massive neutrinos have been initialized
@@ -997,7 +981,7 @@
 
     function TMonodromicQuintessence_PythonClass()
         character(LEN=:), allocatable :: TMonodromicQuintessence_PythonClass
-        TMonodromicQuintessence_PythonClass = 'EarlyQuintessence'
+        TMonodromicQuintessence_PythonClass = 'MonodromicQuintessence'
     end function TMonodromicQuintessence_PythonClass
 
     subroutine TMonodromicQuintessence_SelfPointer(cptr,P)
