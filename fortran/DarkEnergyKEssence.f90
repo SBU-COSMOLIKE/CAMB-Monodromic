@@ -121,10 +121,9 @@
             grhov_t = grhov * a * a
             if (present(w)) w = -1_dl
         elseif (a >= this%astart) then
-            a2 = a**2
             call this%ValsAta(a, phi, X)
             V = this%Vofphi(phi, 0)
-            grhov_t = V*X*(-1._dl + 3*X)
+            grhov_t = V*X*(-1._dl + 3*X)*a**2
             if (present(w)) then
                 w = (-1._dl + X)/(-1._dl + 3*X)
             end if
@@ -154,9 +153,9 @@
         ! Assume otherwise standard background components
         class(TKEssence) :: this
         integer :: num
-        real(dl) y(num),yprime(num)
-        real(dl) a, a2, tot
-        real(dl) phi, grhode, X, H
+        real(dl), intent(inout) :: y(num),yprime(num)
+        real(dl) :: a, a2, tot
+        real(dl) :: phi, grhode, X, H
 
         a2 = a**2
         phi = y(1)
@@ -167,7 +166,8 @@
 
         H = sqrt(tot/3.0d0)
         yprime(1) = sqrt(2*X*this%State%grhocrit/3)/(a*H)
-        yprime(2) = -this%Vofphi(phi, 1)*sqrt(2*X)*(-X + 3*X**2)/(this%Vofphi(phi, 0)*(6*X - 1)) - 6*H*X*(2*X - 1)/(6*X - 1) ! dX/dt
+        
+        yprime(2) = -sqrt(this%State%grhocrit/3)*this%Vofphi(phi, 1)*sqrt(2*X)*(-X + 3*X**2)/(this%Vofphi(phi, 0)*(6*X - 1)) - 6*H*X*(2*X - 1)/(6*X - 1) ! dX/dt
         yprime(2) = yprime(2)/(a*H) ! dX/da
     end subroutine EvolveBackground
 
@@ -218,7 +218,7 @@
         integer, intent(in) :: w_ix
         real(dl) phi, X, clxq, vq
 
-        call this%ValsAta(a,phi,X)
+        call this%ValsAta(a, phi, X)
         clxq=ay(w_ix)
         vq=ay(w_ix+1)
         dgrhoe= X*vq +clxq*a**2*this%Vofphi(phi,1)
@@ -263,7 +263,7 @@
             call this%EvolveBackgroundLog(NumEqs, loga, y, y_prime)
             y(1) = y(1) + y_prime(1)*dloga
             y(2) = y(2) + y_prime(2)*dloga
-            print*, "a =", exp(loga), "phi =", y(1), "X =", y(2)
+            ! print*, "a =", exp(loga), "phi =", y(1), "X =", y(2), "dphi/da =", y_prime(1), "dX/da =", y_prime(2)
         end do
 
         da = (1._dl - a_switch)/nsteps_linear
@@ -272,7 +272,7 @@
             call this%EvolveBackground(NumEqs, a, y, y_prime)
             y(1) = y(1) + y_prime(1)*da
             y(2) = y(2) + y_prime(2)*da
-            print*, "a =", a, "phi =", y(1), "X =", y(2)
+            ! print*, "a =", a, "phi =", y(1), "X =", y(2), "dphi/da =", y_prime(1), "dX/da =", y_prime(2)
         end do
 
         GetOmegaFromInitial = this%Vofphi(y(1), 0)*y(2)*(-1._dl + 3*y(2))/this%State%grhocrit
@@ -343,7 +343,7 @@
 
         grho_no_de_at_initial_a = this%State%grho_no_de(a)/a**4
         X_initial = this%get_initial_X(a)
-        H_ini = this%State%CP%H0 * sqrt(grho_no_de_at_initial_a/this%State%grhocrit)
+        H_ini = sqrt(grho_no_de_at_initial_a/3._dl)
         t_ini = 1._dl/(2._dl*H_ini)
         
         initial_phi = sqrt(2*X_initial*this%state%grhocrit/3._dl) * t_ini
@@ -356,7 +356,7 @@
         integer,  parameter :: nsteps_linear = 1000, nsteps_log = 1000, nsteps = nsteps_log + nsteps_linear
         real(dl), parameter :: omega_de_tol = 1e-4
         real(dl), parameter :: splZero = 0._dl
-        real(dl), parameter :: a_start = 1e-7, a_switch = 1e-3
+        real(dl), parameter :: a_start = 1e-5, a_switch = 1e-3
         real(dl), parameter :: dloga = (log(a_switch) - log(a_start))/nsteps_log, da = (1._dl - a_switch)/nsteps_linear
         real(dl)            :: y(NumEqs), y_prime(NumEqs)
         real(dl)            :: omega_de_target, om, om1, om2
@@ -364,6 +364,7 @@
         real(dl)            :: phi, X
         integer             :: i
         Type(TTimer)        :: Timer
+        real(dl)            :: grho_no_de, grho_de, fde
 
         !Make interpolation table, etc,
         !At this point massive neutrinos have been initialized
@@ -448,6 +449,10 @@
             this%sampled_a(i) = exp(loga)
             this%phi_a(i) = y(1)
             this%X_a(i) = y(2)/this%sampled_a(i)**2
+            grho_no_de = this%State%grho_no_de(this%sampled_a(i))/this%sampled_a(i)**4
+            grho_de    = this%Vofphi(y(1), 0)*y(2)*(3*y(2)-1)
+            fde = grho_de/(grho_no_de + grho_de)
+            print*, "At a =", this%sampled_a(i), "fde = ", fde
         end do
 
         do i = 1, nsteps_linear
@@ -458,6 +463,10 @@
             this%sampled_a(nsteps_log + i) = a
             this%phi_a(nsteps_log + i) = y(1)
             this%X_a(nsteps_log + i) = y(2)/a**2
+            grho_no_de = this%State%grho_no_de(a)/a**4
+            grho_de    = this%Vofphi(y(1), 0)*y(2)*(3*y(2)-1)
+            fde = grho_de/(grho_no_de + grho_de)
+            print*, "At a =", a, "phi =", y(1), "X =", y(2), "fde = ", fde
         end do
 
         ! JVR NOTE: we need to deallocate phi_a, X_a, sampled_a
@@ -475,6 +484,9 @@
 
         call spline(this%sampled_a, this%phi_a, nsteps, splZero, splZero, this%ddphi_a)
         call spline(this%sampled_a, this%X_a, nsteps, splZero, splZero, this%ddX_a)
+
+        call this%ValsAta(a, phi, X)
+        print*, "Testing spline table:", phi, X
 
     end subroutine TMonodromicKEssence_Init
 
