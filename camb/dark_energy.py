@@ -236,5 +236,60 @@ class MonodromicQuintessence(Quintessence):
         self.A = A
         self.nu = nu
 
+
+# base class for scalar field k-essence models
+class KEssence(DarkEnergyModel):
+    r"""
+    Abstract base class for single scalar field k-essence models.
+
+    For each model the field value and derivative are stored and splined at sampled scale factor values.
+
+    To implement a new model, need to define a new derived class in Fortran,
+    defining Vofphi and setting up initial conditions and interpolation tables (see TMonodromicKEssence as example).
+
+    """
+    _fields_ = [
+        ("DebugLevel", c_int),
+        ("astart", c_double),
+        ("integrate_tol", c_double),
+        ("sampled_a", AllocatableArrayDouble),
+        ("phi_a", AllocatableArrayDouble),
+        ("X_a", AllocatableArrayDouble),
+        ("__npoints_linear", c_int),
+        ("__npoints_log", c_int),
+        ("__dloga", c_double),
+        ("__da", c_double),
+        ("__log_astart", c_double),
+        ("__max_a_log", c_double),
+        ("__ddphi_a", AllocatableArrayDouble),
+        ("__ddX_a", AllocatableArrayDouble),
+        ("__state", f_pointer)
+    ]
+    _fortran_class_module_ = 'KEssence'
+
+    def __getstate__(self):
+        raise TypeError("Cannot save class with splines")
+
+@fortran_class
+class MonodromicKEssence(KEssence):
+    r"""
+    Monodromic K-Essence model (as described in https://arxiv.org/pdf/1709.01544.pdf)
+    """
+
+    _fields_ = [
+        ("alpha", c_double, "power law exponent for potential"),
+        ("C", c_double, "Overall scale factor of potential"),
+        ("A", c_double, "Amplitude of oscillating potential part"),
+        ("nu", c_double, "Frequency of oscillating potential part"),
+    ]
+    _fortran_class_name_ = 'TMonodromicKEssence'
+
+    def set_params(self, alpha=0.2, C=5e-54, A=0.05, nu=100):
+        self.alpha = alpha
+        self.C = C
+        self.A = A
+        self.nu = nu
+
+
 # short names for models that support w/wa
 F2003Class._class_names.update({'fluid': DarkEnergyFluid, 'ppf': DarkEnergyPPF})

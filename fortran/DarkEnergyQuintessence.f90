@@ -100,7 +100,7 @@
 
     procedure(TClassDverk) :: dverk
 
-    public TQuintessence, TEarlyQuintessence
+    public TQuintessence, TEarlyQuintessence, TMonodromicQuintessence
     
     contains
 
