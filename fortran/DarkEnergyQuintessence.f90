@@ -933,25 +933,26 @@
 
         y(1) = initial_phi
         y(2) = 0d0
-        
+        loga = log(a_start)
         do i = 1, nsteps_log
-            loga = log(a_start) + i*dloga
             call this%EvolveBackgroundLog(NumEqs, loga, y, y_prime)
             y(1) = y(1) + y_prime(1)*dloga
             y(2) = y(2) + y_prime(2)*dloga
             this%sampled_a(i) = exp(loga)
             this%phi_a(i) = y(1)
             this%phidot_a(i) = y(2)/this%sampled_a(i)**2
+            loga = loga + dloga
         end do
-
+        
+        a = a_switch
         do i = 1, nsteps_linear
-            a = a_switch + i*da
             call this%EvolveBackground(NumEqs, a, y, y_prime)
             y(1) = y(1) + y_prime(1)*da
             y(2) = y(2) + y_prime(2)*da
             this%sampled_a(nsteps_log + i) = a
             this%phi_a(nsteps_log + i) = y(1)
             this%phidot_a(nsteps_log + i) = y(2)/a**2
+            a = a + da
         end do
 
         ! JVR NOTE: we need to deallocate phi_a, phidot_a, sampled_a

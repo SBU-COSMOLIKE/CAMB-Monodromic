@@ -123,7 +123,7 @@
         elseif (a >= this%astart) then
             call this%ValsAta(a, phi, X)
             V = this%Vofphi(phi, 0)
-            grhov_t = V*X*(-1._dl + 3*X)*a**2
+            grhov_t = V*X*(-1._dl + 3*X)*a*a
             if (present(w)) then
                 w = (-1._dl + X)/(-1._dl + 3*X)
             end if
@@ -217,12 +217,13 @@
         real(dl), intent(inout) :: ayprime(*)
         integer, intent(in) :: w_ix
         real(dl) phi, X, clxq, vq
+        ! JVR Note: neglecting perturbations for now...
 
         call this%ValsAta(a, phi, X)
-        clxq=ay(w_ix)
-        vq=ay(w_ix+1)
-        dgrhoe= X*vq +clxq*a**2*this%Vofphi(phi,1)
-        dgqe= k*X*clxq
+        clxq=0.0!ay(w_ix)
+        vq=0.0!ay(w_ix+1)
+        dgrhoe=0.0! X*vq +clxq*a**2*this%Vofphi(phi,1)
+        dgqe=0.0! k*X*clxq
     end subroutine TKEssence_PerturbedStressEnergy
 
     subroutine TKEssence_PerturbationEvolve(this, ayprime, w, w_ix, &
@@ -235,10 +236,10 @@
         real(dl) clxq, vq, phi, X
 
         call this%ValsAta(a,phi,X) !wasting time calling this again..
-        clxq=y(w_ix)
-        vq=y(w_ix+1)
-        ayprime(w_ix)= vq
-        ayprime(w_ix+1) = - 2*adotoa*vq - k*z*X - k**2*clxq - a**2*clxq*this%Vofphi(phi,2)
+        clxq=0.0!y(w_ix)
+        vq=0.0!y(w_ix+1)
+        ayprime(w_ix)= 0.0!vq
+        ayprime(w_ix+1) = 0.0! - 2*adotoa*vq - k*z*X - k**2*clxq - a**2*clxq*this%Vofphi(phi,2)
     end subroutine TKEssence_PerturbationEvolve
 
     real(dl) function GetOmegaFromInitial(this, astart, phi, X, atol)
@@ -440,33 +441,27 @@
 
         y(1) = initial_phi
         y(2) = initial_X
-        
+        loga = log(a_start)
         do i = 1, nsteps_log
-            loga = log(a_start) + i*dloga
+            ! loga = log(a_start) + i*dloga
             call this%EvolveBackgroundLog(NumEqs, loga, y, y_prime)
             y(1) = y(1) + y_prime(1)*dloga
             y(2) = y(2) + y_prime(2)*dloga
             this%sampled_a(i) = exp(loga)
             this%phi_a(i) = y(1)
-            this%X_a(i) = y(2)/this%sampled_a(i)**2
-            grho_no_de = this%State%grho_no_de(this%sampled_a(i))/this%sampled_a(i)**4
-            grho_de    = this%Vofphi(y(1), 0)*y(2)*(3*y(2)-1)
-            fde = grho_de/(grho_no_de + grho_de)
-            print*, "At a =", this%sampled_a(i), "fde = ", fde
+            this%X_a(i) = y(2)
+            loga = loga + dloga
         end do
 
+        a = a_switch
         do i = 1, nsteps_linear
-            a = a_switch + i*da
             call this%EvolveBackground(NumEqs, a, y, y_prime)
             y(1) = y(1) + y_prime(1)*da
             y(2) = y(2) + y_prime(2)*da
             this%sampled_a(nsteps_log + i) = a
             this%phi_a(nsteps_log + i) = y(1)
-            this%X_a(nsteps_log + i) = y(2)/a**2
-            grho_no_de = this%State%grho_no_de(a)/a**4
-            grho_de    = this%Vofphi(y(1), 0)*y(2)*(3*y(2)-1)
-            fde = grho_de/(grho_no_de + grho_de)
-            print*, "At a =", a, "phi =", y(1), "X =", y(2), "fde = ", fde
+            this%X_a(nsteps_log + i) = y(2)
+            a = a + da
         end do
 
         ! JVR NOTE: we need to deallocate phi_a, X_a, sampled_a
@@ -486,7 +481,6 @@
         call spline(this%sampled_a, this%X_a, nsteps, splZero, splZero, this%ddX_a)
 
         call this%ValsAta(a, phi, X)
-        print*, "Testing spline table:", phi, X
 
     end subroutine TMonodromicKEssence_Init
 
