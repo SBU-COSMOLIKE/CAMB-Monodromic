@@ -283,7 +283,7 @@
         integer, parameter ::  NumEqs = 2
         real(dl) :: c(24), w(NumEqs, 9), y(NumEqs), a_switch, y_prime(2)
         integer :: ind, i
-        integer, parameter :: nsteps_log = 2000, nsteps_linear = 2000
+        integer, parameter :: nsteps_log = 1000, nsteps_linear = 2000
         
         real(dl) :: da, dloga, loga, a
         
@@ -347,9 +347,12 @@
                 Vofphi = this%C*(-this%alpha*this%phi_a(2)**(-this%alpha-1)*(1 - this%A*sin(this%nu*this%phi_a(2))) - this%phi_a(2)**(-this%alpha)*this%A*this%nu*cos(this%nu*this%phi_a(2)))
                 return
             end if
+
             Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
-            ! print *, "phi = ", phi, "V' = ", Vofphi
-            ! if (isnan(Vofphi)) stop "V' is NaN"
+            if (isnan(Vofphi)) then
+                print*, "ERROR: for phi =", phi, "V' is NaN"
+                stop
+            end if
         else if (deriv == 2) then
             if (phi < 0) then
                 ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
@@ -358,7 +361,10 @@
             end if
             Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
 
-            if (isnan(Vofphi)) stop "V'' is NaN"
+            if (isnan(Vofphi)) then
+                print*, "ERROR: for phi =", phi, "V'' is NaN"
+                stop
+            end if
         end if
     end function TMonodromicKEssence_VofPhi
 
@@ -391,7 +397,7 @@
         class(TMonodromicKEssence), intent(inout) :: this
         class(TCAMBdata), intent(in), target :: State
         integer,  parameter :: NumEqs = 2, max_iters = 20
-        integer,  parameter :: nsteps_linear = 1000, nsteps_log = 1000, nsteps = nsteps_log + nsteps_linear
+        integer,  parameter :: nsteps_linear = 1500, nsteps_log = 1500, nsteps = nsteps_log + nsteps_linear
         real(dl), parameter :: omega_de_tol = 1e-4
         real(dl), parameter :: splZero = 0._dl
         real(dl), parameter :: a_start = 1e-5, a_switch = 1e-3

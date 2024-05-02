@@ -856,10 +856,10 @@
         class(TMonodromicQuintessence), intent(inout) :: this
         class(TCAMBdata), intent(in), target :: State
         integer,  parameter :: NumEqs = 2, max_iters = 20
-        integer,  parameter :: nsteps_linear = 1000, nsteps_log = 1000, nsteps = nsteps_log + nsteps_linear
+        integer,  parameter :: nsteps_linear = 1500, nsteps_log = 1500, nsteps = nsteps_log + nsteps_linear
         real(dl), parameter :: omega_de_tol = 1e-4
         real(dl), parameter :: splZero = 0._dl
-        real(dl), parameter :: a_start = 1e-7, a_switch = 1e-3
+        real(dl), parameter :: a_start = 1e-6, a_switch = 1e-3
         real(dl), parameter :: dloga = (log(a_switch) - log(a_start))/nsteps_log, da = (1._dl - a_switch)/nsteps_linear
         real(dl)            :: y(NumEqs), y_prime(NumEqs)
         real(dl)            :: omega_de_target, om, om1, om2
@@ -944,7 +944,7 @@
 
         y(1) = initial_phi
         y(2) = 0d0
-        
+
         do i = 1, nsteps_log
             loga = log(a_start) + i*dloga
             call this%EvolveBackgroundLog(NumEqs, loga, y, y_prime)
