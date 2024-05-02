@@ -165,7 +165,7 @@
         tot = this%state%grho_no_de(a)/(a2*a2) + grhode ! 8*pi*G*rho
 
         H = sqrt(tot/3.0d0)
-        yprime(1) = sqrt(2*X*this%State%grhocrit/3)/(a*H)
+        yprime(1) = sqrt(2*X*this%State%grhocrit/3)/(a*H) ! dphi/da
         
         yprime(2) = -sqrt(this%State%grhocrit/3)*this%Vofphi(phi, 1)*sqrt(2*X)*(-X + 3*X**2)/(this%Vofphi(phi, 0)*(6*X - 1)) - 6*H*X*(2*X - 1)/(6*X - 1) ! dX/dt
         yprime(2) = yprime(2)/(a*H) ! dX/da
@@ -216,14 +216,18 @@
         real(dl), intent(in) :: ay(*)
         real(dl), intent(inout) :: ayprime(*)
         integer, intent(in) :: w_ix
-        real(dl) phi, X, clxq, vq
-        ! JVR Note: neglecting perturbations for now...
-
+        real(dl) :: phi, X, delta_phi, delta_phi_prime, delta_X, phidot, V, V_prime
+        
+        ! Following Kunhao's notes
         call this%ValsAta(a, phi, X)
-        clxq=0.0!ay(w_ix)
-        vq=0.0!ay(w_ix+1)
-        dgrhoe=0.0! X*vq +clxq*a**2*this%Vofphi(phi,1)
-        dgqe=0.0! k*X*clxq
+        V = this%Vofphi(phi, 0)
+        V_prime = this%Vofphi(phi, 1)
+        phidot = sqrt(2*X*this%State%grhocrit*3)
+        delta_phi = ay(w_ix)
+        delta_phi_prime = ay(w_ix+1)
+        delta_X = phidot*delta_phi_prime/a
+        dgrhoe = V*(-1._dl + 2*X)*delta_X - V_prime*X*(-1._dl + X)*delta_phi + 4*X*V*delta_X + 2*X*V_prime*(-1._dl + 2*X)*delta_phi
+        dgqe = V*(-1._dl + 2*X)*k*phidot*delta_phi/a
     end subroutine TKEssence_PerturbedStressEnergy
 
     subroutine TKEssence_PerturbationEvolve(this, ayprime, w, w_ix, &
@@ -233,13 +237,43 @@
         real(dl), intent(inout) :: ayprime(:)
         real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
         integer, intent(in) :: w_ix
-        real(dl) clxq, vq, phi, X
+        real(dl) :: phi, X, X_prime, X_dot, V, V_prime, V_primeprime, phidot, phi_prime, phi_primeprime, phi_dotdot, H_curly, a2
+        real(dl) :: delta_phi, delta_phi_prime
+        real(dl) :: grhode, tot
+        real(dl) :: P_X, P_XX, P_Xphi, P_phiphi, P_phiphiX
+        real(dl) :: A_tilde, B_tilde, C_tilde, D_tilde
 
-        call this%ValsAta(a,phi,X) !wasting time calling this again..
-        clxq=0.0!y(w_ix)
-        vq=0.0!y(w_ix+1)
-        ayprime(w_ix)= 0.0!vq
-        ayprime(w_ix+1) = 0.0! - 2*adotoa*vq - k*z*X - k**2*clxq - a**2*clxq*this%Vofphi(phi,2)
+        ! Following Kunhao's thesis, Section 5.3.3, Equation 5.4.1
+        a2 = a*a
+        call this%ValsAta(a,phi,X)
+        phidot = sqrt(2*X*this%State%grhocrit/3)
+        phi_prime = a*phidot
+        delta_phi = y(w_ix)
+        delta_phi_prime = y(w_ix+1)
+        V = this%Vofphi(phi, 0)
+        V_prime = this%Vofphi(phi, 1)
+        V_primeprime = this%Vofphi(phi, 2)
+        
+        grhode = this%Vofphi(phi, 0)*X*(-1._dl + 3*X)*a2
+        tot = this%state%grho_no_de(a)/a2 + grhode ! 8*pi*G*rho*a2
+        H_curly = sqrt(tot/3._dl)
+
+        P_X = V*(-1._dl + 2*X)
+        P_XX = 2*V
+        P_Xphi = 2*V_prime*(-1._dl + 2*X)
+        P_phiphi = V_primeprime*X*(-1._dl + X)
+        P_phiphiX = V_primeprime*(-1._dl + 2*X)
+
+        X_dot = -sqrt(this%State%grhocrit/3)*this%Vofphi(phi, 1)*sqrt(2*X)*(-X + 3*X**2)/(this%Vofphi(phi, 0)*(6*X - 1)) - 6*a*H_curly*X*(2*X - 1)/(6*X - 1)
+        X_prime = a*X_dot
+        phi_dotdot = this%State%grhocrit/3 * X_dot/phidot
+        phi_primeprime = a2*phi_dotdot
+        A_tilde = P_XX*phidot**2 + P_X
+        B_tilde = 2*H_curly*P_X + 2*V_prime*a*phidot**3 + P_XX*(2*phi_prime*phi_primeprime/a2 - H_curly*phidot**2) + phi_prime*P_Xphi
+        C_tilde = -a2*P_phiphi + k*k*P_X + 2*V_prime*X_prime*phi_prime + P_Xphi*phi_primeprime + P_phiphiX*phi_prime**2 + 2*H_curly*P_Xphi*phi_prime
+        D_tilde = 3*k*z*P_X*phi_prime
+        ayprime(w_ix)= delta_phi_prime ! delta_phi'
+        ayprime(w_ix+1) = -(D_tilde + C_tilde*delta_phi + B_tilde*delta_phi_prime)/A_tilde ! delta_phi''
     end subroutine TKEssence_PerturbationEvolve
 
     real(dl) function GetOmegaFromInitial(this, astart, phi, X, atol)
@@ -312,6 +346,11 @@
                 stop
             end if
         else if (deriv == 1) then
+            if (phi < 0) then
+                ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
+                Vofphi = this%C*(-this%alpha*this%phi_a(2)**(-this%alpha-1)*(1 - this%A*sin(this%nu*this%phi_a(2))) - this%phi_a(2)**(-this%alpha)*this%A*this%nu*cos(this%nu*this%phi_a(2)))
+                return
+            end if
             Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
             ! print *, "phi = ", phi, "V' = ", Vofphi
             ! if (isnan(Vofphi)) stop "V' is NaN"

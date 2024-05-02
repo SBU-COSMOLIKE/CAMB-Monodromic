@@ -815,9 +815,17 @@
                 stop
             end if
         else if (deriv == 1) then
+            if (phi < 0) then
+                ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
+                Vofphi = this%C*(-this%alpha*this%phi_a(2)**(-this%alpha-1)*(1 - this%A*sin(this%nu*this%phi_a(2))) - this%phi_a(2)**(-this%alpha)*this%A*this%nu*cos(this%nu*this%phi_a(2)))
+                return
+            end if
+
             Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
-            ! print *, "phi = ", phi, "V' = ", Vofphi
-            ! if (isnan(Vofphi)) stop "V' is NaN"
+            if (isnan(Vofphi)) then
+                print*, "ERROR: for phi =", phi, "V' is NaN"
+                stop
+            end if
         else if (deriv == 2) then
             if (phi < 0) then
                 ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
@@ -826,7 +834,10 @@
             end if
             Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
 
-            if (isnan(Vofphi)) stop "V'' is NaN"
+            if (isnan(Vofphi)) then
+                print*, "ERROR: for phi =", phi, "V'' is NaN"
+                stop
+            end if
         end if
     end function TMonodromicQuintessence_VofPhi
 
