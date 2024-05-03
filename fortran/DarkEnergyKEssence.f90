@@ -225,9 +225,9 @@
         phidot = sqrt(2*X*this%State%grhocrit/3)
         delta_phi = ay(w_ix)
         delta_phi_prime = ay(w_ix+1)
-        delta_X = phidot*delta_phi_prime/a
-        dgrhoe = 0.0 ! V*(-1._dl + 2*X)*delta_X - V_prime*X*(-1._dl + X)*delta_phi + 4*X*V*delta_X + 2*X*V_prime*(-1._dl + 2*X)*delta_phi
-        dgqe = 0.0 ! V*(-1._dl + 2*X)*k*phidot*delta_phi/a
+        delta_X = phidot*delta_phi_prime/a/(this%state%grhocrit/3)
+        dgrhoe = V*(-1._dl + 2*X)*delta_X - V_prime*X*(-1._dl + X)*delta_phi + 4*X*V*delta_X + 2*X*V_prime*(-1._dl + 2*X)*delta_phi
+        dgqe = V*(-1._dl + 2*X)*k*phidot*delta_phi/a
     end subroutine TKEssence_PerturbedStressEnergy
 
     subroutine TKEssence_PerturbationEvolve(this, ayprime, w, w_ix, &
@@ -272,7 +272,7 @@
         B_tilde = 2*H_curly*P_X + 2*V_prime*a*phidot**3 + P_XX*(2*phi_prime*phi_primeprime/a2 - H_curly*phidot**2) + phi_prime*P_Xphi
         C_tilde = -a2*P_phiphi + k*k*P_X + 2*V_prime*X_prime*phi_prime + P_Xphi*phi_primeprime + P_phiphiX*phi_prime**2 + 2*H_curly*P_Xphi*phi_prime
         D_tilde = 3*k*z*P_X*phi_prime
-        ayprime(w_ix)= 0.0 !delta_phi_prime ! delta_phi'
+        ayprime(w_ix) = 0.0 !delta_phi_prime ! delta_phi'
         ayprime(w_ix+1) = 0.0 !-(D_tilde + C_tilde*delta_phi + B_tilde*delta_phi_prime)/A_tilde ! delta_phi''
     end subroutine TKEssence_PerturbationEvolve
 
@@ -339,7 +339,7 @@
             
             if (isnan(Vofphi)) then
                 print*, "ERROR: for phi =", phi, "V is NaN"
-                stopthen
+                stop
             end if
         else if (deriv == 1) then
             if (phi < 0) then
