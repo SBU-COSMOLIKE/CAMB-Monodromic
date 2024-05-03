@@ -189,8 +189,8 @@
             aX= this%X_a(this%npoints_linear+this%npoints_log)
             return
         elseif (a < this%astart) then
-            aphi = this%phi_a(1)
-            aX = 0
+            aphi = this%phi_a(2)
+            aX = this%X_a(2) ! JVR NOTE: this makes things slower but it works for A = 0!
             return
         elseif (a > this%max_a_log) then
             delta= a-this%max_a_log
@@ -222,12 +222,12 @@
         call this%ValsAta(a, phi, X)
         V = this%Vofphi(phi, 0)
         V_prime = this%Vofphi(phi, 1)
-        phidot = sqrt(2*X*this%State%grhocrit*3)
+        phidot = sqrt(2*X*this%State%grhocrit/3)
         delta_phi = ay(w_ix)
         delta_phi_prime = ay(w_ix+1)
         delta_X = phidot*delta_phi_prime/a
-        dgrhoe = V*(-1._dl + 2*X)*delta_X - V_prime*X*(-1._dl + X)*delta_phi + 4*X*V*delta_X + 2*X*V_prime*(-1._dl + 2*X)*delta_phi
-        dgqe = V*(-1._dl + 2*X)*k*phidot*delta_phi/a
+        dgrhoe = 0.0 ! V*(-1._dl + 2*X)*delta_X - V_prime*X*(-1._dl + X)*delta_phi + 4*X*V*delta_X + 2*X*V_prime*(-1._dl + 2*X)*delta_phi
+        dgqe = 0.0 ! V*(-1._dl + 2*X)*k*phidot*delta_phi/a
     end subroutine TKEssence_PerturbedStressEnergy
 
     subroutine TKEssence_PerturbationEvolve(this, ayprime, w, w_ix, &
@@ -245,7 +245,7 @@
 
         ! Following Kunhao's thesis, Section 5.3.3, Equation 5.4.1
         a2 = a*a
-        call this%ValsAta(a,phi,X)
+        call this%ValsAta(a, phi, X)
         phidot = sqrt(2*X*this%State%grhocrit/3)
         phi_prime = a*phidot
         delta_phi = y(w_ix)
@@ -254,7 +254,7 @@
         V_prime = this%Vofphi(phi, 1)
         V_primeprime = this%Vofphi(phi, 2)
         
-        grhode = this%Vofphi(phi, 0)*X*(-1._dl + 3*X)*a2
+        grhode = V*X*(-1._dl + 3*X)*a2
         tot = this%state%grho_no_de(a)/a2 + grhode ! 8*pi*G*rho*a2
         H_curly = sqrt(tot/3._dl)
 
@@ -264,16 +264,16 @@
         P_phiphi = V_primeprime*X*(-1._dl + X)
         P_phiphiX = V_primeprime*(-1._dl + 2*X)
 
-        X_dot = -sqrt(this%State%grhocrit/3)*this%Vofphi(phi, 1)*sqrt(2*X)*(-X + 3*X**2)/(this%Vofphi(phi, 0)*(6*X - 1)) - 6*a*H_curly*X*(2*X - 1)/(6*X - 1)
+        X_dot = -sqrt(this%State%grhocrit/3)*V_prime*sqrt(2*X)*(-X + 3*X**2)/(V*(6*X - 1)) - 6*(H_curly/a)*X*(2*X - 1)/(6*X - 1)
         X_prime = a*X_dot
-        phi_dotdot = this%State%grhocrit/3 * X_dot/phidot
-        phi_primeprime = a2*phi_dotdot
+        phi_dotdot = (this%State%grhocrit/3) * X_dot/phidot
+        phi_primeprime = a2*(phi_dotdot + H_curly*phidot/a)
         A_tilde = P_XX*phidot**2 + P_X
         B_tilde = 2*H_curly*P_X + 2*V_prime*a*phidot**3 + P_XX*(2*phi_prime*phi_primeprime/a2 - H_curly*phidot**2) + phi_prime*P_Xphi
         C_tilde = -a2*P_phiphi + k*k*P_X + 2*V_prime*X_prime*phi_prime + P_Xphi*phi_primeprime + P_phiphiX*phi_prime**2 + 2*H_curly*P_Xphi*phi_prime
         D_tilde = 3*k*z*P_X*phi_prime
-        ayprime(w_ix)= delta_phi_prime ! delta_phi'
-        ayprime(w_ix+1) = -(D_tilde + C_tilde*delta_phi + B_tilde*delta_phi_prime)/A_tilde ! delta_phi''
+        ayprime(w_ix)= 0.0 !delta_phi_prime ! delta_phi'
+        ayprime(w_ix+1) = 0.0 !-(D_tilde + C_tilde*delta_phi + B_tilde*delta_phi_prime)/A_tilde ! delta_phi''
     end subroutine TKEssence_PerturbationEvolve
 
     real(dl) function GetOmegaFromInitial(this, astart, phi, X, atol)
