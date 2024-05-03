@@ -225,7 +225,7 @@
         
         ! Following Kunhao's notes
         call this%ValsAta(a, phi, X)
-        X = X*this%State%grhocrit/3
+        X = X*this%State%grhocrit/3 ! Redefining X as dimensionful
         V = this%Vofphi(phi, 0)
         V_prime = this%Vofphi(phi, 1)
         phidot = sqrt(2*X)
@@ -252,7 +252,7 @@
         ! Following Kunhao's thesis, Section 5.3.3, Equation 5.4.1
         a2 = a*a
         call this%ValsAta(a, phi, X)
-        X = X*this%State%grhocrit/3
+        X = X*this%State%grhocrit/3 ! Making X dimensionful
         phidot = sqrt(2*X)
         phi_prime = a*phidot
         delta_phi = y(w_ix)
