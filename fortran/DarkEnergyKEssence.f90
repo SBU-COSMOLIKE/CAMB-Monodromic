@@ -339,7 +339,7 @@
             
             if (isnan(Vofphi)) then
                 print*, "ERROR: for phi =", phi, "V is NaN"
-                stop
+                stopthen
             end if
         else if (deriv == 1) then
             if (phi < 0) then
