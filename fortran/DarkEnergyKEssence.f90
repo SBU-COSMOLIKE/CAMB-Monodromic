@@ -225,12 +225,13 @@
         
         ! Following Kunhao's notes
         call this%ValsAta(a, phi, X)
+        X = X*this%State%grhocrit/3
         V = this%Vofphi(phi, 0)
         V_prime = this%Vofphi(phi, 1)
-        phidot = sqrt(2*X*this%State%grhocrit/3)
+        phidot = sqrt(2*X)
         delta_phi = ay(w_ix)
         delta_phi_prime = ay(w_ix+1)
-        delta_X = phidot*delta_phi_prime/a ! Defining delta_X dimensionful
+        delta_X = phidot*delta_phi_prime/a
         dgrhoe = V*(-1._dl + 2*X)*delta_X - V_prime*X*(-1._dl + X)*delta_phi + 4*X*V*delta_X + 2*X*V_prime*(-1._dl + 2*X)*delta_phi
         dgqe = V*(-1._dl + 2*X)*k*a*phidot*delta_phi
     end subroutine TKEssence_PerturbedStressEnergy
@@ -251,7 +252,8 @@
         ! Following Kunhao's thesis, Section 5.3.3, Equation 5.4.1
         a2 = a*a
         call this%ValsAta(a, phi, X)
-        phidot = sqrt(2*X*this%State%grhocrit/3)
+        X = X*this%State%grhocrit/3
+        phidot = sqrt(2*X)
         phi_prime = a*phidot
         delta_phi = y(w_ix)
         delta_phi_prime = y(w_ix+1)
@@ -270,9 +272,9 @@
         P_phiphi = V_primeprime*X*(-1._dl + X)
         P_phiphiX = V_primeprime*(-1._dl + 2*X)
 
-        X_dot = -sqrt(this%State%grhocrit/3)*V_prime*sqrt(2*X)*(-X + 3*X**2)/(V*(6*X - 1)) - 6*(H_curly/a)*X*(2*X - 1)/(6*X - 1)
+        X_dot = -V_prime*sqrt(2*X)*(-X + 3*X**2)/(V*(6*X - 1)) - 6*(H_curly/a)*X*(2*X - 1)/(6*X - 1)
         X_prime = a*X_dot
-        phi_dotdot = (this%State%grhocrit/3) * X_dot/phidot
+        phi_dotdot = X_dot/phidot
         phi_primeprime = a2*(phi_dotdot + H_curly*phidot/a)
         A_tilde = P_XX*phidot**2 + P_X
         B_tilde = 2*H_curly*P_X + 2*V_prime*a*phidot**3 + P_XX*(3*phi_prime*phi_primeprime/a2 - H_curly*phidot**2) + phi_prime*P_Xphi
