@@ -230,9 +230,9 @@
         phidot = sqrt(2*X*this%State%grhocrit/3)
         delta_phi = ay(w_ix)
         delta_phi_prime = ay(w_ix+1)
-        delta_X = phidot*delta_phi_prime/a/(this%state%grhocrit/3)
+        delta_X = phidot*delta_phi_prime/a ! Defining delta_X dimensionful
         dgrhoe = V*(-1._dl + 2*X)*delta_X - V_prime*X*(-1._dl + X)*delta_phi + 4*X*V*delta_X + 2*X*V_prime*(-1._dl + 2*X)*delta_phi
-        dgqe = V*(-1._dl + 2*X)*k*phidot*delta_phi/a
+        dgqe = V*(-1._dl + 2*X)*k*a*phidot*delta_phi
     end subroutine TKEssence_PerturbedStressEnergy
 
     subroutine TKEssence_PerturbationEvolve(this, ayprime, w, w_ix, &
@@ -362,10 +362,11 @@
         else if (deriv == 2) then
             if (phi < 0) then
                 ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
-                Vofphi = this%C*this%phi_a(2)**(-this%alpha-2)*(this%A*sin(this%nu*this%phi_a(2))*(this%phi_a(2)**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*this%phi_a(2)*cos(this%nu*this%phi_a(2)) + this%alpha*(1._dl + this%alpha))
+                Vofphi = -2*this%A*this%alpha*this%C*this%nu*this%phi_a(2)**(-1._dl - this%alpha)*cos(this%nu*this%phi_a(2)) - this%A*this%C*this%nu**2*this%phi_a(2)**(-this%alpha)*sin(this%nu*this%phi_a(2)) + (1._dl + this%alpha)*this%alpha*this%C*this%phi_a(2)**(-2._dl-this%alpha)*(1._dl + this%A*sin(this%nu*this%phi_a(2)))
                 return
             end if
-            Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
+            Vofphi = -2*this%A*this%alpha*this%C*this%nu*phi**(-1._dl - this%alpha)*cos(this%nu*phi) - this%A*this%C*this%nu**2*phi**(-this%alpha)*sin(this%nu*phi) + (1._dl + this%alpha)*this%alpha*this%C*phi**(-2._dl-this%alpha)*(1._dl + this%A*sin(this%nu*phi))
+            !Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
 
             if (isnan(Vofphi)) then
                 print*, "ERROR: for phi =", phi, "V'' is NaN"
