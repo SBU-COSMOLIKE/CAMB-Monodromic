@@ -271,9 +271,9 @@
         A_tilde = P_XX*phidot**2 + P_X
         B_tilde = 2*H_curly*P_X + 2*V_prime*a*phidot**3 + P_XX*(2*phi_prime*phi_primeprime/a2 - H_curly*phidot**2) + phi_prime*P_Xphi
         C_tilde = -a2*P_phiphi + k*k*P_X + 2*V_prime*X_prime*phi_prime + P_Xphi*phi_primeprime + P_phiphiX*phi_prime**2 + 2*H_curly*P_Xphi*phi_prime
-        D_tilde = 3*k*z*P_X*phi_prime
-        ayprime(w_ix) = 0.0 !delta_phi_prime ! delta_phi'
-        ayprime(w_ix+1) = 0.0 !-(D_tilde + C_tilde*delta_phi + B_tilde*delta_phi_prime)/A_tilde ! delta_phi''
+        D_tilde = k*z*P_X*phi_prime
+        ayprime(w_ix) = delta_phi_prime ! delta_phi'
+        ayprime(w_ix+1) = -(D_tilde + C_tilde*delta_phi + B_tilde*delta_phi_prime)/A_tilde ! delta_phi''
     end subroutine TKEssence_PerturbationEvolve
 
     real(dl) function GetOmegaFromInitial(this, astart, phi, X, atol)
