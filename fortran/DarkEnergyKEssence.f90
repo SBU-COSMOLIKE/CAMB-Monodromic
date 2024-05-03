@@ -128,8 +128,13 @@
                 w = (-1._dl + X)/(-1._dl + 3*X)
             end if
         else
-            grhov_t = 0
-            if (present(w)) w = -1
+            phi = this%phi_a(2)
+            X = this%X_a(2)
+            V = this%Vofphi(phi, 0)
+            grhov_t = V*X*(-1._dl + 3*X)*a*a
+            if (present(w)) then
+                w = (-1._dl + X)/(-1._dl + 3*X)
+            end if
         end if
     end subroutine TKEssence_BackgroundDensityAndPressure
 
@@ -258,9 +263,10 @@
         tot = this%state%grho_no_de(a)/a2 + grhode ! 8*pi*G*rho*a2
         H_curly = sqrt(tot/3._dl)
 
+        ! P = V(-X + X^2)
         P_X = V*(-1._dl + 2*X)
         P_XX = 2*V
-        P_Xphi = 2*V_prime*(-1._dl + 2*X)
+        P_Xphi = V_prime*(-1._dl + 2*X)
         P_phiphi = V_primeprime*X*(-1._dl + X)
         P_phiphiX = V_primeprime*(-1._dl + 2*X)
 
@@ -269,7 +275,7 @@
         phi_dotdot = (this%State%grhocrit/3) * X_dot/phidot
         phi_primeprime = a2*(phi_dotdot + H_curly*phidot/a)
         A_tilde = P_XX*phidot**2 + P_X
-        B_tilde = 2*H_curly*P_X + 2*V_prime*a*phidot**3 + P_XX*(2*phi_prime*phi_primeprime/a2 - H_curly*phidot**2) + phi_prime*P_Xphi
+        B_tilde = 2*H_curly*P_X + 2*V_prime*a*phidot**3 + P_XX*(3*phi_prime*phi_primeprime/a2 - H_curly*phidot**2) + phi_prime*P_Xphi
         C_tilde = -a2*P_phiphi + k*k*P_X + 2*V_prime*X_prime*phi_prime + P_Xphi*phi_primeprime + P_phiphiX*phi_prime**2 + 2*H_curly*P_Xphi*phi_prime
         D_tilde = k*z*P_X*phi_prime
         ayprime(w_ix) = delta_phi_prime ! delta_phi'
