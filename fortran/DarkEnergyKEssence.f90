@@ -346,8 +346,7 @@
             Vofphi = this%C*phi**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*phi))
             
             if (isnan(Vofphi)) then
-                print*, "ERROR: for phi =", phi, "V is NaN"
-                stop
+                call GlobalError("V is NaN", error_darkenergy)
             end if
         else if (deriv == 1) then
             if (phi < 0) then
@@ -358,8 +357,7 @@
 
             Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
             if (isnan(Vofphi)) then
-                print*, "ERROR: for phi =", phi, "V' is NaN"
-                stop
+                call GlobalError("V' is NaN", error_darkenergy)
             end if
         else if (deriv == 2) then
             if (phi < 0) then
@@ -371,8 +369,7 @@
             !Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
 
             if (isnan(Vofphi)) then
-                print*, "ERROR: for phi =", phi, "V'' is NaN"
-                stop
+                call GlobalError("V'' is NaN", error_darkenergy)
             end if
         end if
     end function TMonodromicKEssence_VofPhi
@@ -451,7 +448,7 @@
         ! Binary search for C
         C_1 = this%State%grhov * 0.5_dl
         C_2 = this%State%grhov * 1.3_dl
-        print*, "Shooting for C with tentative values: ", C_1, C_2
+        ! print*, "Shooting for C with tentative values: ", C_1, C_2
         
         ! See if current C is giving correct omega_de now
         atol = 1d-8
@@ -461,24 +458,24 @@
         om1 = this%GetOmegaFromInitial(a_start, initial_phi, initial_X, atol)
         this%C = C_2
         om2 = this%GetOmegaFromInitial(a_start, initial_phi, initial_X, atol)
-        print*, "Target Omega_de:", omega_de_target
-        print*, "C = ", C_1, "=> omega_de = ", om1
-        print*, "C = ", C_2, "=> omega_de = ", om2
+        ! print*, "Target Omega_de:", omega_de_target
+        ! print*, "C = ", C_1, "=> omega_de = ", om1
+        ! print*, "C = ", C_2, "=> omega_de = ", om2
         
         do i = 1, max_iters
-            if (om1 > omega_de_target .or. om2 < omega_de_target) then
-                write (*,*) 'WARNING: initial guesses for C did not bracket the required value'
-            end if
+            ! if (om1 > omega_de_target .or. om2 < omega_de_target) then
+            !     write (*,*) 'WARNING: initial guesses for C did not bracket the required value'
+            ! end if
             a_line = (om2 - om1)/(C_2 - C_1)
 		    b_line = om2 - a_line*C_2
             new_C = (omega_de_target - b_line)/a_line
             this%C = new_C
             om = this%GetOmegaFromInitial(a_start, initial_phi, initial_X, atol)
             error = (om - omega_de_target)/omega_de_target
-            print*, "C = ", new_C, "=> omega_de = ", om, "(error = ", error, ")"
+            ! print*, "C = ", new_C, "=> omega_de = ", om, "(error = ", error, ")"
             
             if (abs(error) < omega_de_tol) then 
-                print*, "Finished shooting successfully after ", i, "iterations"
+            !     print*, "Finished shooting successfully after ", i, "iterations"
                 exit
             end if
 
