@@ -294,14 +294,16 @@ class MonodromicKEssence(KEssence):
         ("C", c_double, "Overall scale factor of potential"),
         ("A", c_double, "Amplitude of oscillating potential part"),
         ("nu", c_double, "Frequency of oscillating potential part"),
+        ("delta", c_double, "Phase of oscillating potential part"),
     ]
     _fortran_class_name_ = 'TMonodromicKEssence'
 
-    def set_params(self, alpha=0.2, C=5e-54, A=0.05, nu=100):
+    def set_params(self, alpha=0.2, C=5e-54, A=0.05, nu=100, delta=0):
         self.alpha = alpha
         self.C = C
         self.A = A
         self.nu = nu
+        self.delta = delta
 
 
 # short names for models that support w/wa

@@ -46,6 +46,7 @@
         real(dl) :: C = 1.0_dl
         real(dl) :: A = 0.05_dl
         real(dl) :: nu = 50.0_dl 
+        real(dl) :: delta = 0d0 ! Introducing phase offset \delta from https://arxiv.org/pdf/2507.16970
         integer :: npoints = 200
     contains
         procedure :: Vofphi => TMonodromicKEssence_VofPhi
@@ -340,10 +341,10 @@
         if (deriv == 0) then
             if (phi < 0) then
                 ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
-                Vofphi = this%C*this%phi_a(2)**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*this%phi_a(2)))
+                Vofphi = this%C*this%phi_a(2)**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*this%phi_a(2) + this%delta))
                 return
             end if
-            Vofphi = this%C*phi**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*phi))
+            Vofphi = this%C*phi**(-this%alpha)*(1.0_dl - this%A*sin(this%nu*phi + this%delta))
             
             if (isnan(Vofphi)) then
                 call GlobalError("V is NaN", error_darkenergy)
@@ -351,21 +352,21 @@
         else if (deriv == 1) then
             if (phi < 0) then
                 ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
-                Vofphi = this%C*(-this%alpha*this%phi_a(2)**(-this%alpha-1)*(1 - this%A*sin(this%nu*this%phi_a(2))) - this%phi_a(2)**(-this%alpha)*this%A*this%nu*cos(this%nu*this%phi_a(2)))
+                Vofphi = this%C*(-this%alpha*this%phi_a(2)**(-this%alpha-1)*(1 - this%A*sin(this%nu*this%phi_a(2) + this%delta)) - this%phi_a(2)**(-this%alpha)*this%A*this%nu*cos(this%nu*this%phi_a(2) + this%delta))
                 return
             end if
 
-            Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi))
+            Vofphi = this%C*(-this%alpha*phi**(-this%alpha-1)*(1 - this%A*sin(this%nu*phi + this%delta)) - phi**(-this%alpha)*this%A*this%nu*cos(this%nu*phi + this%delta))
             if (isnan(Vofphi)) then
                 call GlobalError("V' is NaN", error_darkenergy)
             end if
         else if (deriv == 2) then
             if (phi < 0) then
                 ! print *, "WARNING: negative field value: this shouldn't happen for this model. Using the second phi value in the interpolation table instead"
-                Vofphi = -2*this%A*this%alpha*this%C*this%nu*this%phi_a(2)**(-1._dl - this%alpha)*cos(this%nu*this%phi_a(2)) - this%A*this%C*this%nu**2*this%phi_a(2)**(-this%alpha)*sin(this%nu*this%phi_a(2)) + (1._dl + this%alpha)*this%alpha*this%C*this%phi_a(2)**(-2._dl-this%alpha)*(1._dl + this%A*sin(this%nu*this%phi_a(2)))
+                Vofphi = -2*this%A*this%alpha*this%C*this%nu*this%phi_a(2)**(-1._dl - this%alpha)*cos(this%nu*this%phi_a(2) + this%delta) - this%A*this%C*this%nu**2*this%phi_a(2)**(-this%alpha)*sin(this%nu*this%phi_a(2) + this%delta) + (1._dl + this%alpha)*this%alpha*this%C*this%phi_a(2)**(-2._dl-this%alpha)*(1._dl + this%A*sin(this%nu*this%phi_a(2) + this%delta))
                 return
             end if
-            Vofphi = -2*this%A*this%alpha*this%C*this%nu*phi**(-1._dl - this%alpha)*cos(this%nu*phi) - this%A*this%C*this%nu**2*phi**(-this%alpha)*sin(this%nu*phi) + (1._dl + this%alpha)*this%alpha*this%C*phi**(-2._dl-this%alpha)*(1._dl + this%A*sin(this%nu*phi))
+            Vofphi = -2*this%A*this%alpha*this%C*this%nu*phi**(-1._dl - this%alpha)*cos(this%nu*phi + this%delta) - this%A*this%C*this%nu**2*phi**(-this%alpha)*sin(this%nu*phi + this%delta) + (1._dl + this%alpha)*this%alpha*this%C*phi**(-2._dl-this%alpha)*(1._dl + this%A*sin(this%nu*phi + this%delta))
             !Vofphi = this%C*phi**(-this%alpha-2)*(this%A*sin(this%nu*phi)*(phi**2*this%nu**2 - this%alpha**2 - this%alpha) + 2._dl*this%A*this%nu*this%alpha*phi*cos(this%nu*phi) + this%alpha*(1._dl + this%alpha))
 
             if (isnan(Vofphi)) then
