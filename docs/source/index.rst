@@ -8,30 +8,39 @@ The main code is Python with numerical calculations implemented efficiently in P
 
 See the `CAMB python example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_ for an
 introductory set of examples of how to use the CAMB package. This is usually the fastest way to learn how to use it
-and quickly see some of the capabilities.
+and quickly see some of the capabilities. There's also an `AI help assistant <https://cosmocoffee.info/help_assist.php>`_,
+with up-to-date knowledge of the full Python documentation,
+and you can use with code execution in `CMB Agent <https://github.com/CMBAgents/cmbagent/>`_.
+
+There are also `technical notes <https://cosmologist.info/notes/CAMB.pdf>`_,
+the `symbolic equation notebook <https://camb.readthedocs.io/en/latest/ScalEqs.html>`_,
+and an `LLM context file <https://camb.readthedocs.io/en/latest/_static/camb_docs_combined.md>`_ that you can use in
+system prompts or as part of a documentation database.
 
 For a standard non-editable installation use::
 
     pip install camb [--user]
 
 The --user is optional and only required if you don't have write permission to your main python installation.
-If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_, you can also just install in place without copying anything using::
+
+If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_, you can install using::
 
     git clone --recursive https://github.com/cmbant/CAMB.git
     pip install -e ./CAMB [--user]
 
-You will need ifort or gfortran 6 or higher installed (and on your path) to compile; see :ref:`fortran-compilers` for
-compiler installation details if needed. A compiled library for Windows is also provided, and is used if no
-gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make" will build
+You will need ifort or gfortran 6 or higher installed (and on your path) to compile from source;
+you can see :ref:`fortran-compilers` for compiler installation details if needed.
+If you have gfortran installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
 a source installation after changes or pulling an updated version.
 
+The standard pip installation includes binary pre-compiled code, so no need for a Fortran compiler
+(unless you want to use custom sources/symbolic compilation features).
 Anaconda users can also install from conda-forge, best making a new clean environment using::
 
-  conda create -n camb -c conda-forge python=3.9 camb
+  conda create -n camb -c conda-forge python=3.13 camb
   activate camb
 
-with no need for a Fortran compiler (unless you want to use custom sources/symbolic compilation features).
 Check that conda installs the latest version, if not try installing
 in a new clean conda environment as above.
 
@@ -74,6 +83,8 @@ Other modules:
    :maxdepth: 1
 
    transfer_variables
+   modifying_code
+   variables_guide
    fortran_compilers
    mathutils
 

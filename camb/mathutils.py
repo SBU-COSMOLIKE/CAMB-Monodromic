@@ -4,9 +4,11 @@ independent of the main camb code.
 
 """
 
-from ctypes import c_int, c_double, c_bool, POINTER
-from .baseconfig import camblib, numpy_1d, numpy_2d, numpy_3d
+from ctypes import POINTER, c_bool, c_double, c_int
+
 import numpy as np
+
+from .baseconfig import camblib, numpy_1d, numpy_2d, numpy_3d
 
 _chi2 = camblib.__mathutils_MOD_getchisquared
 _chi2.argtypes = [numpy_2d, numpy_1d, POINTER(c_int)]
@@ -22,7 +24,7 @@ def chi_squared(covinv, x):
     :return: covinv.dot(x).dot(x), but parallelized and using symmetry
     """
     if len(x) != covinv.shape[0] or covinv.shape[0] != covinv.shape[1]:
-        raise ValueError('Wrong shape in chi_squared')
+        raise ValueError("Wrong shape in chi_squared")
     return _chi2(covinv, x, c_int(len(x)))
 
 
@@ -53,8 +55,10 @@ def threej_pt(l1, l2, l3, m1, m2, m3):
     Convenience testing function to get 3j for specific arguments.
     Normally use threej to get an array at once for same cost.
 
+    :param l1: L_1
     :param l2: L_2
     :param l3: L_3
+    :param m1: M_1
     :param m2: M_2
     :param m3: M_3
     :return: Wigner 3j (integer zero if outside triangle constraints)
@@ -108,7 +112,7 @@ def threej_coupling(W, lmax, pol=False):
         assert lmax_w == min(2 * lmax, len(m) - 1)
     Wmat = np.empty((nW, lmax_w + 1))
     for i, m in enumerate(W):
-        Wmat[i, :] = m[:lmax_w + 1]
+        Wmat[i, :] = m[: lmax_w + 1]
     _coupling_3j(Wmat, c_int(lmax_w), c_int(nW), c_bool(pol), M, c_int(lmax))
     if n == 1:
         return M[0, :, :]
@@ -129,11 +133,11 @@ def scalar_coupling_matrix(P, lmax):
     if not isinstance(P, (list, tuple)):
         P = [P]
     elif any(x.size != P[0].size for x in P[1:]):
-        raise ValueError('Mask power spectra must have same lmax')
+        raise ValueError("Mask power spectra must have same lmax")
 
     lmax_power = min(P[0].size - 1, 2 * lmax)
     if lmax_power < 2 * lmax:
-        print('Warning: power spectrum lmax is less than 2*lmax')
+        print("Warning: power spectrum lmax is less than 2*lmax")
 
     fac = (2 * np.arange(lmax_power + 1) + 1) / 4 / np.pi
     M = threej_coupling([fac * power for power in P], lmax)
@@ -157,7 +161,7 @@ def pcl_coupling_matrix(P, lmax, pol=False):
 
     lmax_power = min(P.size - 1, 2 * lmax)
     if lmax_power < 2 * lmax:
-        print('Warning: power spectrum lmax is less than 2*lmax')
+        print("Warning: power spectrum lmax is less than 2*lmax")
 
     W = (2 * np.arange(lmax_power + 1) + 1) * P / (4 * np.pi)
     M = threej_coupling(W, lmax, pol=pol)

@@ -1,6 +1,6 @@
     !---------------------------------------------------------------------------------------------------
     ! Recombination module for CAMB, using HYREC-2 (July 2020)
-    ! HYREC-2 is available at https://github.com/nanoomlee/HYREC-2 
+    ! HYREC-2 is available at https://github.com/nanoomlee/HYREC-2
     ! Download HYREC-2 and place it in the parent directory of CAMB
     ! If the model defined in history.h of HYREC-2 is not the default one, SWIFT,
     ! then Nz should be changed (See line 21 and 22)
@@ -16,12 +16,12 @@
     use MpiUtils, only : MpiStop
     implicit none
     private
-    
-	real(dl), parameter ::  zinitial = 8e3_dl !highest redshift
+
+    real(dl), parameter ::  zinitial = 8e3_dl !highest redshift
     real(dl), parameter ::  zfinal=0._dl
     integer, parameter :: Nz=2248            !For SWIFT model of HYREC-2
     !integer,  parameter :: Nz=105859          !For the rest of models
-    
+
     Type RecombinationData
         real(dl), private :: xhyrec(Nz), tmhyrec(Nz)
         real(dl), private :: Tnow
@@ -46,9 +46,9 @@
     function THyRec_tm(this,a)
     class(THyRec) :: this
     real(dl), intent(in) :: a
-    real(dl) THyRec_tm,hyrec_tm
-	real(dl) z
-    external hyrec_tm
+    real(dl) THyRec_tm
+    real(dl) z
+    real(dl), external :: hyrec_tm
 
     z=1/a-1
     associate( Calc => this%Calc)
@@ -69,10 +69,10 @@
     function THyRec_xe(this,a)
     class(THyRec) :: this
     real(dl), intent(in) :: a
-    real(dl) THyRec_xe,hyrec_xe
-	real(dl) z
-    external hyrec_xe
-    
+    real(dl) THyRec_xe
+    real(dl) z
+    real(dl), external :: hyrec_xe
+
     z=1/a-1
     associate( Calc => this%Calc)
         if (z >= zinitial) then
@@ -92,9 +92,8 @@
     class(THyRec) :: this
     real(dl), intent(in) :: a
     real(dl), intent(out) :: xe, Tm
-    real(dl) hyrec_xe, hyrec_tm
     real(dl) z
-    external hyrec_xe, hyrec_tm
+    real(dl), external :: hyrec_xe, hyrec_tm
 
     z=1/a-1
     associate(Calc => this%Calc)
@@ -110,7 +109,7 @@
                 Tm=hyrec_tm(a,Calc%tmhyrec)
             endif
         endif
-    
+
     end associate
     end subroutine THyRec_xe_Tm
 
@@ -126,7 +125,7 @@
     class(THyRec), target :: this
     class(TCAMBdata), target :: State
     Type(RecombinationData), pointer :: Calc
-	logical, intent(in), optional :: WantTSpin
+    logical, intent(in), optional :: WantTSpin
     real(dl) OmegaB, OmegaC, OmegaN, h2
     external rec_build_history_camb
 
@@ -145,7 +144,7 @@
         h2 = (State%CP%H0/100)**2
         OmegaB = State%CP%ombh2/h2
         OmegaC = State%CP%omch2/h2
-        
+
         Calc%Tnow=State%CP%tcmb
 
         call rec_build_history_camb(OmegaC, OmegaB, &
@@ -166,4 +165,3 @@
     end subroutine THyRec_SelfPointer
 
     end module HyRec
-

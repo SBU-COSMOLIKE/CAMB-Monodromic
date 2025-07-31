@@ -3,7 +3,7 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = '1.5.4'
+    character(LEN=*), parameter :: version = '1.6.1'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -37,7 +37,7 @@
 
     real(dl), parameter :: OmegaKFlat = 5e-7_dl !Value at which to use flat code
 
-    real(dl), parameter :: tol=1.0d-4 !Base tolerance for perturbation integrations
+    real(dl), parameter :: base_tol=1.0d-4 !Base tolerance for perturbation integrations
 
     character(LEN=1024) :: highL_unlensed_cl_template = 'HighLExtrapTemplate_lenspotentialCls.dat'
     !fiducial high-accuracy high-L C_L used for making small cosmology-independent numerical corrections
@@ -60,6 +60,7 @@
     integer, parameter :: error_darkenergy=6
     integer, parameter :: error_ini=7
     integer, parameter :: error_nonlinear=8
+    integer, parameter :: error_allocation=9
 
     contains
 

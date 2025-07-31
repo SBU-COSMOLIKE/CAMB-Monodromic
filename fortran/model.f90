@@ -58,7 +58,7 @@
         !Reionization settings - used if Reion%Reionization=.true.
         logical   :: AccurateReionization = .true.
         !Do you care about pecent level accuracy on EE signal from reionization?
-       
+
         !The following allow separate tweaking (all also affected by AccuracyBoost above)
 
         real(dl) :: TimeStepBoost = 1._dl !sampling timesteps
@@ -182,9 +182,9 @@
         logical :: Do21cm = .false.
         logical :: transfer_21cm_cl = .false.
         logical :: Log_lvalues  = .false. !useful for smooth results at very high L
-        logical :: use_cl_spline_template = .true.    
+        logical :: use_cl_spline_template = .true.
         integer :: min_l_logl_sampling = 5000 ! increase to use linear sampling for longer
-    
+
         Type(TSourceWindowHolder), allocatable :: SourceWindows(:)
 
         Type(TCustomSourceParams) :: CustomSources
@@ -238,6 +238,7 @@
     !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic),
     !or use degenerate mass approximation.
     !omnuh2 is the massive total neutrino density today, omnuh2_sterile is the component of that due to steriles
+    !omnuh2_sterile is interpreted as in the Planck parameter papers
     use MathUtils
     use constants
     class(CAMBparams), intent(inout) :: this
@@ -252,6 +253,7 @@
         return
     end if
     this%Nu_mass_eigenstates=0
+    this%share_delta_neff = .false.
     if (omnuh2 > omnuh2_sterile) then
         normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
         if (neutrino_hierarchy == neutrino_hierarchy_degenerate) then
